@@ -32,4 +32,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Erinnerungen / lokale Benachrichtigungen -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Exakte Alarme fuer praezise Einnahmezeiten (Android 12+).
+         USE_EXACT_ALARM ist fuer Erinnerungs-/Wecker-Apps zulaessig (Dosia erinnert an Medikamente). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 </manifest>

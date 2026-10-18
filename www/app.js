@@ -315,10 +315,14 @@ function renderMore(){
 
   html+=`<div class="card">
     <div class="title">Erinnerungen</div>
-    <div class="sub">Benachrichtigungen, solange Dosia (im Hintergrund) geöffnet ist.</div>
+    <div class="sub">${isNative
+      ? 'Geplante Benachrichtigungen zu den Einnahmezeiten – auch bei geschlossener App.'
+      : 'Benachrichtigungen, solange Dosia geöffnet ist (Browser-Version).'}</div>
     <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
       <input type="checkbox" id="setNotify" ${s.notify?'checked':''}> Erinnerungen aktivieren</label>
-    <div class="notice">⚠ Wichtig: Web-Apps können im Hintergrund <b>nicht zuverlässig</b> erinnern, wenn das Handy gesperrt oder die App ganz geschlossen ist (v. a. auf dem iPhone). Verlass dich bei kritischen Medikamenten zusätzlich auf einen echten Wecker.</div>
+    ${isNative
+      ? `<div class="hint">Falls keine Erinnerungen ankommen: In den Android-Einstellungen unter <b>Apps → Dosia → Benachrichtigungen</b> erlauben und bei <b>Akku</b> „nicht optimiert/uneingeschränkt" wählen, damit Android die App nicht einschläfert.</div>`
+      : `<div class="notice">⚠ In der Browser-Version können Erinnerungen bei geschlossener Seite nicht garantiert werden. Für zuverlässige Erinnerungen die installierte App nutzen.</div>`}
   </div>`;
 
   html+=`<div class="card">
@@ -465,8 +469,8 @@ function measureForm(){
 const act = {
   closeModal,
   // Heute
-  take(key,medId,time){ const cur=intakeState(key,medId,time); setIntake(key,medId,time, cur?.status==='taken'?null:'taken'); render(); },
-  skip(key,medId,time){ const cur=intakeState(key,medId,time); setIntake(key,medId,time, cur?.status==='skipped'?null:'skipped'); render(); },
+  take(key,medId,time){ const cur=intakeState(key,medId,time); setIntake(key,medId,time, cur?.status==='taken'?null:'taken'); render(); refreshReminders(); },
+  skip(key,medId,time){ const cur=intakeState(key,medId,time); setIntake(key,medId,time, cur?.status==='skipped'?null:'skipped'); render(); refreshReminders(); },
   // Medikament
   newMed(){ medForm(null); },
   editMed(id){ medForm(DB.meds.find(m=>m.id===id)); },
@@ -489,9 +493,9 @@ const act = {
     };
     if(id){ Object.assign(DB.meds.find(m=>m.id===id), data); }
     else{ DB.meds.push(Object.assign({id:uid(),createdAt:new Date().toISOString(),archived:false}, data)); }
-    saveDB(); closeModal(); render();
+    saveDB(); closeModal(); render(); refreshReminders();
   },
-  archiveMed(id){ if(confirm('Dieses Medikament löschen? Der Verlauf bleibt erhalten.')){ const m=DB.meds.find(x=>x.id===id); if(m)m.archived=true; saveDB(); closeModal(); render(); } },
+  archiveMed(id){ if(confirm('Dieses Medikament löschen? Der Verlauf bleibt erhalten.')){ const m=DB.meds.find(x=>x.id===id); if(m)m.archived=true; saveDB(); closeModal(); render(); refreshReminders(); } },
   // Messwerte
   newMeasure(){ measureForm(); },
   measureTypeChange(){
@@ -511,12 +515,30 @@ const act = {
   // Einstellungen
   async toggleNotify(on){
     if(on){
-      if(!('Notification' in window)){ alert('Dieses Gerät unterstützt keine Benachrichtigungen.'); DB.settings.notify=false; render(); return; }
-      const perm = await Notification.requestPermission();
-      DB.settings.notify = perm==='granted';
-      if(perm!=='granted') alert('Benachrichtigungen wurden nicht erlaubt.');
+      if(isNative){
+        const ln=LN();
+        if(!ln){ alert('Benachrichtigungen werden auf diesem Gerät nicht unterstützt.'); DB.settings.notify=false; render(); return; }
+        let granted=false;
+        try{
+          let p = await ln.checkPermissions();
+          if(p.display!=='granted'){ p = await ln.requestPermissions(); }
+          granted = p && p.display==='granted';
+          // Exakte Alarme (Android 12+) anfragen, falls das Plugin das anbietet
+          if(granted && ln.changeExactNotificationSetting){
+            try{ const e=await ln.checkExactNotificationSetting?.(); if(e && e.exact_alarm!=='granted'){ await ln.changeExactNotificationSetting(); } }catch{}
+          }
+        }catch(e){ console.warn(e); }
+        DB.settings.notify = granted;
+        if(!granted){ alert('Bitte erlaube Benachrichtigungen für Dosia in den Android-Einstellungen.'); }
+        else { await ensureChannel(); }
+      } else {
+        if(!('Notification' in window)){ alert('Dieser Browser unterstützt keine Benachrichtigungen.'); DB.settings.notify=false; render(); return; }
+        const perm = await Notification.requestPermission();
+        DB.settings.notify = perm==='granted';
+        if(perm!=='granted') alert('Benachrichtigungen wurden nicht erlaubt.');
+      }
     }else{ DB.settings.notify=false; }
-    saveDB(); scheduleReminderLoop(); render();
+    saveDB(); await refreshReminders(); render();
   },
   setTheme(t){ DB.settings.theme=t; applyTheme(); saveDB(); render(); },
   exportData(){
@@ -528,43 +550,110 @@ const act = {
     const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json';
     inp.onchange=()=>{ const f=inp.files[0]; if(!f)return; const r=new FileReader();
       r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.meds){throw 0;}
-        if(confirm('Backup einspielen? Aktuelle Daten werden ersetzt.')){ DB=Object.assign(defaultDB(),d); saveDB(); render(); alert('Backup eingespielt.'); } }
+        if(confirm('Backup einspielen? Aktuelle Daten werden ersetzt.')){ DB=Object.assign(defaultDB(),d); saveDB(); render(); refreshReminders(); alert('Backup eingespielt.'); } }
         catch(e){ alert('Ungültige Backup-Datei.'); } };
       r.readAsText(f); };
     inp.click();
   },
-  wipe(){ if(confirm('Wirklich ALLE Daten unwiderruflich löschen?')){ DB=defaultDB(); saveDB(); render(); } },
+  wipe(){ if(confirm('Wirklich ALLE Daten unwiderruflich löschen?')){ DB=defaultDB(); saveDB(); render(); refreshReminders(); } },
   install(){ if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt=null; } },
 };
 window.act=act;
 
 /* ======================================================================
-   ERINNERUNGEN (best-effort, nur bei geöffneter App)
+   ERINNERUNGEN
+   - Nativ (Android via Capacitor LocalNotifications): echte geplante
+     Benachrichtigungen – feuern auch bei geschlossener App und nach Neustart.
+   - Web/PWA-Fallback: best-effort, nur solange die App geöffnet ist.
 ====================================================================== */
+const Cap = window.Capacitor;
+const isNative = !!(Cap && typeof Cap.isNativePlatform==='function' && Cap.isNativePlatform());
+const LN = () => (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) || null;
+const NOTIF_WINDOW = 64;   // so viele kommende Dosen im Voraus einplanen
+let channelReady = false;
+
+// Nächste fällige Dosen über alle Medikamente (nur Zukunft, offene)
+function nextDoseOccurrences(limit){
+  const out=[]; const now=new Date();
+  for(let d=0; d<30 && out.length<limit*2; d++){
+    const day=new Date(now); day.setDate(now.getDate()+d); const key=todayKey(day);
+    for(const dose of dosesForDay(key)){
+      const [h,m]=dose.time.split(':').map(Number);
+      const when=new Date(day); when.setHours(h,m,0,0);
+      if(when.getTime() > now.getTime()+20000){
+        if(!(key===todayKey() && intakeState(key,dose.medId,dose.time))){
+          out.push({ when, med:dose.med, time:dose.time });
+        }
+      }
+    }
+  }
+  out.sort((a,b)=>a.when-b.when);
+  return out.slice(0,limit);
+}
+
+async function ensureChannel(){
+  const ln=LN(); if(!ln || !ln.createChannel) return;
+  try{
+    await ln.createChannel({ id:'dosia-reminders', name:'Einnahme-Erinnerungen',
+      description:'Erinnert an die Medikamenten-Einnahme', importance:5, visibility:1, vibration:true });
+    channelReady = true;
+  }catch(e){ console.warn('createChannel', e); channelReady=false; }
+}
+
+// Alle geplanten Benachrichtigungen neu aufbauen (rollierendes Fenster)
+async function nativeReschedule(){
+  const ln=LN(); if(!ln) return;
+  try{
+    const pend = await ln.getPending();
+    if(pend && pend.notifications && pend.notifications.length){
+      await ln.cancel({ notifications: pend.notifications.map(n=>({id:n.id})) });
+    }
+    if(!DB.settings.notify) return;
+    const occ = nextDoseOccurrences(NOTIF_WINDOW);
+    if(!occ.length) return;
+    const notifications = occ.map((o,i)=>{
+      const n = {
+        id: i+1,
+        title: 'Dosia · '+o.med.name,
+        body: (o.time+' · '+(o.med.strength||'Zeit für die Einnahme')).trim(),
+        schedule: { at: o.when, allowWhileIdle: true }
+      };
+      if(channelReady) n.channelId='dosia-reminders';
+      return n;
+    });
+    await ln.schedule({ notifications });
+  }catch(e){ console.warn('nativeReschedule', e); }
+}
+
+// Web-Fallback (nur geöffnet)
 let reminderTimer=null;
 const firedKey = ()=> 'dosia.fired.'+todayKey();
 function getFired(){ try{ return JSON.parse(localStorage.getItem(firedKey())||'[]'); }catch{ return []; } }
 function addFired(k){ const f=getFired(); f.push(k); try{ localStorage.setItem(firedKey(), JSON.stringify(f)); }catch{} }
-function scheduleReminderLoop(){
+function webReminderLoop(){
   clearInterval(reminderTimer);
-  if(!DB.settings.notify) return;
-  reminderTimer=setInterval(checkReminders, 30000);
-  checkReminders();
+  if(!DB.settings.notify || !('Notification' in window)) return;
+  reminderTimer=setInterval(webCheck, 30000); webCheck();
 }
-function checkReminders(){
-  if(!DB.settings.notify || Notification.permission!=='granted') return;
+function webCheck(){
+  if(!DB.settings.notify || !('Notification' in window) || Notification.permission!=='granted') return;
   const key=todayKey(), now=new Date(), nowHM=pad(now.getHours())+':'+pad(now.getMinutes());
   const fired=getFired();
   for(const dose of dosesForDay(key)){
     const fk=dose.medId+'|'+dose.time;
     if(dose.time<=nowHM && !fired.includes(fk)){
-      // nur wenn noch offen
       if(!intakeState(key,dose.medId,dose.time)){
-        try{ new Notification('Dosia · Zeit für '+dose.med.name, { body:`${dose.time} · ${dose.med.strength||''}`.trim(), tag:fk }); }catch{}
+        try{ new Notification('Dosia · Zeit für '+dose.med.name, { body:(dose.time+' · '+(dose.med.strength||'')).trim(), tag:fk }); }catch{}
       }
       addFired(fk);
     }
   }
+}
+
+// Einheitlicher Einstiegspunkt: nach jeder zeitplanrelevanten Änderung aufrufen
+async function refreshReminders(){
+  if(isNative){ await nativeReschedule(); }
+  else { webReminderLoop(); }
 }
 
 /* ======================================================================
@@ -589,5 +678,6 @@ if('serviceWorker' in navigator){
 }
 
 applyTheme();
-scheduleReminderLoop();
 render();
+// Beim Start: Kanal sicherstellen und Erinnerungen (neu) einplanen
+(async()=>{ if(isNative){ await ensureChannel(); } await refreshReminders(); })();

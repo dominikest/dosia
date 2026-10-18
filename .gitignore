@@ -17,6 +17,10 @@ release-signing.properties
 KEYSTORE-PASSWORT.txt
 KEYSTORE-BASE64.txt
 
+# Test-/Build-APKs im Projektstamm
+*.apk
+*.aab
+
 # OS / Editor
 .DS_Store
 Thumbs.db
