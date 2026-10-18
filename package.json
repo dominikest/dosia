@@ -1,11 +1,12 @@
 {
   "name": "dosia",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
-  "description": "Dosia â€“ persÃ¶nliche Medikamentenverwaltung (offline, lokal). Eigene App, kein Server, keine Cloud.",
+  "description": "Dosia – persönliche Medikamentenverwaltung (offline, lokal). Eigene App, kein Server, keine Cloud.",
   "scripts": {
-    "sync": "cap sync android",
-    "copy": "cap copy android",
+    "version:write": "node scripts/write-version.mjs",
+    "sync": "node scripts/write-version.mjs && cap sync android",
+    "copy": "node scripts/write-version.mjs && cap copy android",
     "icons": "capacitor-assets generate --android",
     "open:android": "cap open android"
   },

@@ -3,7 +3,7 @@
 'use strict';
 
 /* ---------- Speicher ---------- */
-const APP_VERSION = '1.0.1';
+const APP_VERSION = window.DOSIA_VERSION || '?';   // kommt aus version.js (package.json)
 const DB_KEY = 'dosia.db.v1';
 const defaultDB = () => ({
   version: 1,

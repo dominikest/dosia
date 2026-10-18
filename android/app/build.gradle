@@ -10,6 +10,12 @@ if (hasKeystoreFile) {
 def envStoreFile = System.getenv("DOSIA_STORE_FILE")
 def hasReleaseSigning = hasKeystoreFile || (envStoreFile != null && !envStoreFile.isEmpty())
 
+// Version: einzige Quelle ist "version" in package.json (z. B. "1.2.3").
+// versionCode wird daraus berechnet: 1.2.3 -> 10203 (steigt mit jeder Version, wie Play es verlangt).
+def appVersionName = new groovy.json.JsonSlurper().parse(rootProject.file("../package.json")).version
+def vParts = appVersionName.tokenize('.').collect { it.replaceAll(/\D.*$/, '') as int }
+def appVersionCode = vParts[0] * 10000 + vParts[1] * 100 + vParts[2]
+
 android {
     namespace = "de.dominikest.dosia"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -17,8 +23,8 @@ android {
         applicationId "de.dominikest.dosia"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.0.1"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -45,6 +51,11 @@ android {
             }
         }
     }
+}
+
+// Ausgabedateien mit Versionsnummer, z. B. Dosia-1.0.2-release.apk / Dosia-1.0.2-release.aab
+base {
+    archivesName = "Dosia-${appVersionName}"
 }
 
 repositories {

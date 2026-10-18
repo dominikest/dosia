@@ -42,8 +42,15 @@ jobs:
           # Standard waere 'tools' – das Paket gibt es nicht mehr
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
+      - name: Read version
+        id: ver
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "### Dosia $VERSION" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Sync web assets into Android project
-        run: npx cap sync android
+        run: npm run sync
 
       - name: Decode keystore
         env:
@@ -64,14 +71,22 @@ jobs:
           chmod +x ./gradlew
           ./gradlew bundleRelease assembleRelease --no-daemon
 
+      - name: Rename outputs with version
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          mkdir -p out
+          cp android/app/build/outputs/bundle/release/*.aab "out/Dosia-$V.aab"
+          cp android/app/build/outputs/apk/release/*.apk   "out/Dosia-$V.apk"
+          ls -l out
+
       - name: Upload AAB (fuer den Play Store)
         uses: actions/upload-artifact@v4
         with:
-          name: dosia-release-aab
-          path: android/app/build/outputs/bundle/release/*.aab
+          name: Dosia-${{ steps.ver.outputs.version }}-aab
+          path: out/Dosia-${{ steps.ver.outputs.version }}.aab
 
       - name: Upload APK (zum Sideload-Testen)
         uses: actions/upload-artifact@v4
         with:
-          name: dosia-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          name: Dosia-${{ steps.ver.outputs.version }}-apk
+          path: out/Dosia-${{ steps.ver.outputs.version }}.apk
