@@ -1,8 +1,8 @@
-{
+﻿{
   "name": "dosia",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
-  "description": "Dosia – persönliche Medikamentenverwaltung (offline, lokal). Eigene App, kein Server, keine Cloud.",
+  "description": "Dosia â€“ persÃ¶nliche Medikamentenverwaltung (offline, lokal). Eigene App, kein Server, keine Cloud.",
   "scripts": {
     "sync": "cap sync android",
     "copy": "cap copy android",

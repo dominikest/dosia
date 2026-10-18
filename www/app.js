@@ -3,6 +3,7 @@
 'use strict';
 
 /* ---------- Speicher ---------- */
+const APP_VERSION = '1.0.1';
 const DB_KEY = 'dosia.db.v1';
 const defaultDB = () => ({
   version: 1,
@@ -359,6 +360,7 @@ function renderMore(){
   </div>`;
 
   html+=`<div class="hint">Dosia ersetzt keine ärztliche oder pharmazeutische Beratung. Prüfe Dosierungen und Wechselwirkungen immer mit Arzt oder Apotheke.</div>`;
+  html+=`<div class="sub center" style="margin-top:14px">Dosia ${APP_VERSION} · ${isNative?'App':'Browser'}${isNative&&!LN()?' · Benachrichtigungs-Plugin fehlt':''}</div>`;
 
   view.innerHTML=html;
 
@@ -673,8 +675,13 @@ document.querySelectorAll('#tabs button').forEach(b=> b.onclick=()=>{ currentTab
 // Täglicher Rollover: um Mitternacht neu rendern
 setInterval(()=>{ if(currentTab==='today') render(); }, 60000);
 
+// Service Worker nur in der Browser-/PWA-Version; in der App alte Registrierungen entfernen
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW:',e));
+  if(isNative){
+    navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});
+  } else {
+    navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW:',e));
+  }
 }
 
 applyTheme();
