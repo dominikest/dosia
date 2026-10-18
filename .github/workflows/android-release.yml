@@ -60,7 +60,9 @@ jobs:
           DOSIA_STORE_PASSWORD: ${{ secrets.DOSIA_STORE_PASSWORD }}
           DOSIA_KEY_ALIAS: ${{ secrets.DOSIA_KEY_ALIAS }}
           DOSIA_KEY_PASSWORD: ${{ secrets.DOSIA_KEY_PASSWORD }}
-        run: ./gradlew bundleRelease assembleRelease --no-daemon
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundleRelease assembleRelease --no-daemon
 
       - name: Upload AAB (fuer den Play Store)
         uses: actions/upload-artifact@v4
