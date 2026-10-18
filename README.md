@@ -60,13 +60,21 @@ nicht ausführen. Daher läuft der Release-Build in **GitHub Actions** auf Linux
    | `DOSIA_KEY_PASSWORD` | dasselbe Passwort |
    | `DOSIA_KEY_ALIAS` | `dosia` |
 
+### Neue Version
+Die Version steht **nur** in `package.json` (`"version": "1.2.3"`). Daraus ergeben sich automatisch:
+- `versionName` 1.2.3 und `versionCode` 10203 im Android-Build (steigt mit jeder Version, wie Play es verlangt)
+- die Anzeige in der App (Mehr → ganz unten), über das erzeugte `www/version.js`
+- die Dateinamen: `Dosia-1.2.3.apk` / `Dosia-1.2.3.aab`
+
+Also: Version in `package.json` erhöhen, committen, pushen, Build auslösen.
+
 ### Build auslösen
 - In GitHub → **Actions → „Android Release" → Run workflow**, oder
 - einen Tag pushen: `git tag v1.0.0 && git push origin v1.0.0`
 
 Nach dem Lauf unter **Actions → der Lauf → Artifacts**:
-- `dosia-release-aab` → `app-release.aab` (das lädst du in den Play Store hoch)
-- `dosia-release-apk` → `app-release.apk` (zum direkten Testen auf dem Handy)
+- `Dosia-<Version>-aab` → `Dosia-<Version>.aab` (das lädst du in den Play Store hoch)
+- `Dosia-<Version>-apk` → `Dosia-<Version>.apk` (zum direkten Testen auf dem Handy)
 
 > ⚠️ **Keystore sichern!** `dosia-upload.keystore` + Passwort sind für **alle** zukünftigen
 > Updates nötig. Gehen sie verloren, kannst du die App im Play Store nicht mehr aktualisieren.
