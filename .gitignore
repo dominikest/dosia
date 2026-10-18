@@ -1,0 +1,23 @@
+# Node
+node_modules/
+
+# Capacitor / Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/
+android/local.properties
+.gradle/
+
+# Signing – NIEMALS committen!
+*.keystore
+*.jks
+keystore.properties
+release-signing.properties
+KEYSTORE-PASSWORT.txt
+KEYSTORE-BASE64.txt
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.log

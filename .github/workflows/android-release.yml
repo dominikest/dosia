@@ -1,0 +1,70 @@
+name: Android Release (AAB + APK)
+
+# Baut ein signiertes App Bundle (.aab) fuer den Play Store und ein signiertes .apk.
+# Laeuft auf Linux -> umgeht die AF_UNIX-/Proxy-Probleme der lokalen Umgebung.
+#
+# Benoetigte GitHub-Secrets (Repo -> Settings -> Secrets and variables -> Actions):
+#   DOSIA_KEYSTORE_BASE64  = Base64 des Upload-Keystores (Inhalt von KEYSTORE-BASE64.txt)
+#   DOSIA_STORE_PASSWORD   = Store-Passwort (siehe KEYSTORE-PASSWORT.txt)
+#   DOSIA_KEY_PASSWORD     = Key-Passwort (identisch zum Store-Passwort)
+#   DOSIA_KEY_ALIAS        = dosia
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Java (Temurin 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Sync web assets into Android project
+        run: npx cap sync android
+
+      - name: Decode keystore
+        run: echo "${{ secrets.DOSIA_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/dosia-upload.keystore"
+
+      - name: Build signed AAB and APK
+        working-directory: android
+        env:
+          DOSIA_STORE_FILE: ${{ runner.temp }}/dosia-upload.keystore
+          DOSIA_STORE_PASSWORD: ${{ secrets.DOSIA_STORE_PASSWORD }}
+          DOSIA_KEY_ALIAS: ${{ secrets.DOSIA_KEY_ALIAS }}
+          DOSIA_KEY_PASSWORD: ${{ secrets.DOSIA_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease assembleRelease --no-daemon
+
+      - name: Upload AAB (fuer den Play Store)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dosia-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+
+      - name: Upload APK (zum Sideload-Testen)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dosia-release-apk
+          path: android/app/build/outputs/apk/release/*.apk

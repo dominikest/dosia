@@ -1,0 +1,8 @@
+{
+  "appId": "de.dominikest.dosia",
+  "appName": "Dosia",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Dosia</string>
+    <string name="title_activity_main">Dosia</string>
+    <string name="package_name">de.dominikest.dosia</string>
+    <string name="custom_url_scheme">de.dominikest.dosia</string>
+</resources>
