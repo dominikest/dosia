@@ -1,4 +1,4 @@
-﻿apply plugin: 'com.android.application'
+apply plugin: 'com.android.application'
 
 // Release-Signatur aus keystore.properties laden (lokal) oder aus Umgebungsvariablen (CI).
 def keystorePropertiesFile = rootProject.file("../keystore.properties")
