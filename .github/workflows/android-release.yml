@@ -46,7 +46,12 @@ jobs:
         run: npx cap sync android
 
       - name: Decode keystore
-        run: echo "${{ secrets.DOSIA_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/dosia-upload.keystore"
+        env:
+          KEYSTORE_B64: ${{ secrets.DOSIA_KEYSTORE_BASE64 }}
+        run: |
+          # Leerzeichen/Zeilenumbrueche tolerieren
+          printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/dosia-upload.keystore"
+          ls -l "$RUNNER_TEMP/dosia-upload.keystore"
 
       - name: Build signed AAB and APK
         working-directory: android
