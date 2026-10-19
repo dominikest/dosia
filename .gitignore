@@ -31,3 +31,6 @@ release/
 
 # Persoenliche Angaben fuer Impressum/Datenschutz
 website/config.php
+
+# Kopie fuer die Homepage (wird von npm run sync erzeugt)
+website/CHANGELOG.md

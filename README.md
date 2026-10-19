@@ -76,7 +76,8 @@ SHA-1 des Upload-Keys `14:D7:58:F0:28:90:AA:9A:50:97:13:EC:46:FD:B4:86:DD:66:FD:
 Fehlercode `API_10` in der App = Client fehlt oder SHA-1/Paketname passt nicht.
 
 ## Homepage (`website/`)
-- `index.php` – Präsentation + Download der neuesten `download/Dosia-x.y.z.apk`
+- `index.php` – Präsentation + Download der neuesten `download/Dosia-x.y.z.apk` + Kasten „Neu in Version …"
+- `neuigkeiten.php` – alle Versionen aus `CHANGELOG.md` (`npm run sync` kopiert es nach `website/CHANGELOG.md` – mit hochladen)
 - `impressum.php`, `datenschutz.php` (Website), `datenschutz-app.php` (App, für Play Console und In-App-Link)
 - Persönliche Angaben nur in `website/config.php` (Vorlage: `config.example.php`), E-Mail wird spamgeschützt ausgegeben
 - Die URL der App-Datenschutzerklärung steht in `package.json` unter `dosia.privacyUrl`
