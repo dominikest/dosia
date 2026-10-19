@@ -23,9 +23,16 @@ function loadDB(){
     return Object.assign(defaultDB(), d);
   }catch(e){ console.warn('DB load failed', e); return defaultDB(); }
 }
-function saveDB(){
+function saveDB(opts){
   try{ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
-  catch(e){ alert('Speichern fehlgeschlagen – evtl. ist der Speicher voll.'); }
+  catch(e){ alert('Speichern fehlgeschlagen – evtl. ist der Speicher voll.'); return; }
+  // Nach Änderungen automatisch in Google Drive sichern (falls verbunden)
+  if(!(opts && opts.skipBackup) && typeof GDrive !== 'undefined') GDrive.scheduleAuto();
+}
+// Kompletten Datenbestand ersetzen (Backup-Import, Wiederherstellung aus Google Drive)
+function replaceDB(d, opts){
+  DB = Object.assign(defaultDB(), d);
+  saveDB(opts); render(); refreshReminders();
 }
 
 /* ---------- Helfer ---------- */
@@ -340,6 +347,8 @@ function renderMore(){
     <input id="setMedfriend" value="${esc(s.medfriend||'')}" placeholder="z. B. Anna · 0170 …">
   </div>`;
 
+  html+=`<div class="card">${GDrive.cardHtml()}</div>`;
+
   html+=`<div class="card">
     <div class="title">Datensicherung</div>
     <div class="sub">Alle Daten liegen nur auf diesem Gerät. Sichere sie regelmäßig.</div>
@@ -349,7 +358,7 @@ function renderMore(){
     </div>
   </div>`;
 
-  html+=`<div class="card">
+  if(!isNative) html+=`<div class="card">
     <div class="title">Installieren</div>
     <div class="sub">Im Browser-Menü „Zum Startbildschirm hinzufügen" wählen – dann läuft Dosia wie eine App, offline.</div>
     <div class="actions" style="margin-top:10px"><button class="btn-ghost btn-sm" id="installBtn" style="display:none">App installieren</button></div>
@@ -367,7 +376,7 @@ function renderMore(){
   $('#setNotify').onchange=e=>{ act.toggleNotify(e.target.checked); };
   $('#setMedfriend').onchange=e=>{ DB.settings.medfriend=e.target.value.trim(); saveDB(); };
   $('#themeChips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ act.setTheme(c.dataset.theme); });
-  if(deferredPrompt){ const b=$('#installBtn'); b.style.display='inline-block'; b.onclick=()=>act.install(); }
+  const ib=$('#installBtn'); if(deferredPrompt && ib){ ib.style.display='inline-block'; ib.onclick=()=>act.install(); }
 }
 
 /* ======================================================================
@@ -552,7 +561,7 @@ const act = {
     const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json';
     inp.onchange=()=>{ const f=inp.files[0]; if(!f)return; const r=new FileReader();
       r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.meds){throw 0;}
-        if(confirm('Backup einspielen? Aktuelle Daten werden ersetzt.')){ DB=Object.assign(defaultDB(),d); saveDB(); render(); refreshReminders(); alert('Backup eingespielt.'); } }
+        if(confirm('Backup einspielen? Aktuelle Daten werden ersetzt.')){ replaceDB(d); alert('Backup eingespielt.'); } }
         catch(e){ alert('Ungültige Backup-Datei.'); } };
       r.readAsText(f); };
     inp.click();
@@ -611,6 +620,16 @@ async function nativeReschedule(){
       await ln.cancel({ notifications: pend.notifications.map(n=>({id:n.id})) });
     }
     if(!DB.settings.notify) return;
+    // Einstellung kann z. B. aus einer Sicherung auf ein neues Handy kommen,
+    // wo Android die Erlaubnis noch nicht erteilt hat -> einmal nachfragen, sonst sichtbar ausschalten.
+    let perm = await ln.checkPermissions();
+    if(perm.display !== 'granted'){ perm = await ln.requestPermissions(); }
+    if(perm.display !== 'granted'){
+      DB.settings.notify = false; saveDB({ skipBackup:true }); render();
+      alert('Erinnerungen wurden ausgeschaltet, weil Android keine Benachrichtigungen für Dosia erlaubt. Du kannst sie unter „Mehr" wieder aktivieren.');
+      return;
+    }
+    if(!channelReady) await ensureChannel();
     const occ = nextDoseOccurrences(NOTIF_WINDOW);
     if(!occ.length) return;
     const notifications = occ.map((o,i)=>{
@@ -688,3 +707,5 @@ applyTheme();
 render();
 // Beim Start: Kanal sicherstellen und Erinnerungen (neu) einplanen
 (async()=>{ if(isNative){ await ensureChannel(); } await refreshReminders(); })();
+// Google-Drive-Sicherung: spätestens alle 24 h
+GDrive.onStart();

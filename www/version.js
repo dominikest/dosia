@@ -1,2 +1,2 @@
 // Automatisch erzeugt aus package.json – nicht von Hand aendern.
-window.DOSIA_VERSION = '1.0.2';
+window.DOSIA_VERSION = '1.1.0';
