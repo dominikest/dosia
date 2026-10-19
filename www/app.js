@@ -11,7 +11,7 @@ const defaultDB = () => ({
   meds: [],          // {id,profileId,name,form,strength,color,stock,stockThreshold,schedule,notes,interact,trackWeight,createdAt,archived}
   intake: {},        // { "YYYY-MM-DD": { "medId|HH:MM": {status:'taken'|'skipped', ts} } }
   measures: [],      // {id,profileId,medId?,type,value,value2,unit,ts,note}
-  settings: { notify:false, theme:'auto', medfriend:'', profileFilter:'all' }
+  settings: { notify:false, theme:'auto', medfriend:'', profileFilter:'all', followUp:true, followUpMin:30 }
 });
 
 // Ältere Datenstände (auch aus Backups) auf das aktuelle Modell bringen
@@ -134,6 +134,21 @@ function isActiveOn(med, dateKey){
     const dow = new Date(dateKey+'T00:00').getDay();
     return (s.weekdays||[]).includes(dow);
   }
+  if(s.type==='weeks'){
+    // alle X Wochen, gerechnet ab Startdatum (bzw. Anlagetag)
+    const n = Math.max(1, s.everyWeeks||1);
+    const diff = daysBetween(startKey||dateKey, dateKey);
+    return diff>=0 && diff % (7*n) === 0;
+  }
+  if(s.type==='months'){
+    // alle X Monate am selben Tag wie das Startdatum; gibt es den Tag nicht (z. B. 31.), am Monatsletzten
+    const n = Math.max(1, s.everyMonths||1);
+    const b = new Date((startKey||dateKey)+'T00:00'), d = new Date(dateKey+'T00:00');
+    const months = (d.getFullYear()-b.getFullYear())*12 + d.getMonth()-b.getMonth();
+    if(months<0 || months % n) return false;
+    const lastDay = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+    return d.getDate() === Math.min(b.getDate(), lastDay);
+  }
   if(s.type==='cycle'){
     const anchor = s.anchor || s.start || med.createdAt?.slice(0,10) || dateKey;
     const on=Math.max(1,s.onDays||1), off=Math.max(0,s.offDays||0);
@@ -173,6 +188,7 @@ function setIntake(dateKey, medId, time, status){
     DB.intake[dateKey][key] = {status, ts:Date.now()};
     if(status==='taken' && prev?.status!=='taken') adjustStock(medId, -1);
     if(status!=='taken' && prev?.status==='taken') adjustStock(medId, +1);
+    if(typeof removeSnooze==='function') removeSnooze(dateKey, medId, time);   // erledigt -> nicht mehr schlummern
   }
   saveDB();
 }
@@ -182,6 +198,34 @@ function adjustStock(medId, delta){
     med.stock = Math.max(0, med.stock + delta);
   }
 }
+
+/* ---------- Vorrat ---------- */
+// Durchschnittlicher Verbrauch pro Tag laut Einnahmeplan (über ein Jahr, damit auch seltene Rhythmen zählen)
+function dosesPerDay(med){
+  const days = 365, start = new Date(); start.setHours(0,0,0,0);
+  let n = 0;
+  for(let d=0; d<days; d++){
+    const day = new Date(start); day.setDate(start.getDate()+d);
+    if(isActiveOn(med, todayKey(day))) n += (med.schedule?.times||[]).length;
+  }
+  return n / days;
+}
+// { daysLeft, until, low } oder null, wenn kein Bestand gepflegt wird
+function stockInfo(med){
+  if(typeof med.stock!=='number') return null;
+  const perDay = dosesPerDay(med);
+  const daysLeft = perDay>0 ? Math.floor(med.stock / perDay) : null;
+  const until = daysLeft!=null ? new Date(Date.now() + daysLeft*86400000) : null;
+  const low = med.stockThreshold>0 && med.stock <= med.stockThreshold;
+  return { daysLeft, until, low };
+}
+const fmtDays = n => n===0 ? 'heute leer' : n===1 ? 'reicht ~1 Tag' : `reicht ~${n} Tage`;
+
+// Nachkauf-Erinnerung: einmal pro "Knapp-Phase"; nach dem Auffüllen (Bestand erhöht) wieder scharf
+const RESTOCK_KEY = 'dosia.restock.v1';
+function getRestock(){ try{ return JSON.parse(localStorage.getItem(RESTOCK_KEY)||'{}'); }catch{ return {}; } }
+function setRestock(o){ try{ localStorage.setItem(RESTOCK_KEY, JSON.stringify(o)); }catch{} }
+function clearRestock(medId){ const o=getRestock(); delete o[medId]; setRestock(o); }
 
 /* ---------- Adhärenz-Statistik ---------- */
 function adherence(days=7){
@@ -230,6 +274,36 @@ function renderToday(){
         <div class="sub">Heute noch nicht erfasst</div></div>
       <button class="btn-primary btn-sm" onclick="act.weightForm('${p.id}')">Erfassen</button>
     </div></div>`;
+  }
+
+  // Vorrat knapp
+  for(const med of DB.meds.filter(m=>!m.archived && inFilter(m.profileId))){
+    const si=stockInfo(med); if(!si || !si.low) continue;
+    html += `<div class="card"><div class="row">
+      <div class="pill">🛒</div>
+      <div class="grow"><div class="title">Nachkaufen: ${esc(med.name)}</div>
+        <div class="sub">${multiProfile()?profileLabel(profileById(med.profileId))+' · ':''}noch ${med.stock}${si.daysLeft!=null?' · '+fmtDays(si.daysLeft):''}</div></div>
+      <button class="btn-ghost btn-sm" onclick="act.editMed('${med.id}')">Bestand</button>
+    </div></div>`;
+  }
+
+  // Überfällige Dosen (> 2 Std. offen) mit Notfall-Kontakt
+  const contact = (DB.settings.medfriend||'').trim();
+  if(contact){
+    const nowMs = Date.now();
+    const overdue = doses.filter(d=>{ const [h,mi]=d.time.split(':').map(Number); const t=new Date(); t.setHours(h,mi,0,0);
+      return nowMs - t.getTime() > 2*3600000 && !intakeState(key,d.medId,d.time); });
+    if(overdue.length){
+      const phone = (contact.match(/\+?\d[\d\s\/().-]{4,}\d/)||[''])[0].replace(/[^\d+]/g,'');
+      html += `<div class="card" style="border-color:var(--warn)"><div class="row">
+        <div class="pill">⚠️</div>
+        <div class="grow"><div class="title">Seit über 2 Std. offen</div>
+          <div class="sub">${overdue.map(d=>`${esc(d.med.name)} (${d.time})`).join(', ')}</div>
+          <div class="sub" style="margin-top:4px">Notfall-Kontakt: <b>${esc(contact)}</b></div></div>
+      </div>${phone?`<div class="actions" style="margin-top:10px">
+        <a class="btn-primary btn-sm" style="text-decoration:none;border-radius:10px;padding:7px 11px" href="tel:${phone}">📞 Anrufen</a>
+        <a class="btn-ghost btn-sm" style="text-decoration:none;border-radius:10px;padding:7px 11px;color:var(--text)" href="sms:${phone}">💬 SMS</a></div>`:''}</div>`;
+    }
   }
 
   if(!doses.length){
@@ -296,7 +370,8 @@ function renderMeds(){
         <div class="title">${esc(med.name)}</div>
         <div class="sub">${esc(med.strength||'')} · ${esc(sched)}</div>
         <div style="margin-top:6px">
-          ${typeof med.stock==='number'?`<span class="tag ${low?'danger':'ok'}">Bestand: ${med.stock}${low?' · niedrig':''}</span>`:''}
+          ${(()=>{ const si=stockInfo(med); if(!si) return '';
+            return `<span class="tag ${si.low?'danger':'ok'}">Bestand: ${med.stock}${si.daysLeft!=null?' · '+fmtDays(si.daysLeft):''}${si.low?' · nachkaufen':''}</span>`; })()}
           ${med.interact?`<span class="tag warn">⚠ Wechselwirkung</span>`:''}
           ${med.trackWeight?`<span class="tag">⚖️ Gewicht</span>`:''}
         </div>
@@ -312,6 +387,8 @@ function scheduleSummary(s){
   if(s.type==='daily') return `täglich ${times}`;
   if(s.type==='interval') return `alle ${s.everyDays||1} Tage ${times}`;
   if(s.type==='weekdays') return `${(s.weekdays||[]).map(d=>WD[d]).join('/')} ${times}`;
+  if(s.type==='weeks') return `${(s.everyWeeks||1)===1?'wöchentlich':'alle '+s.everyWeeks+' Wochen'} ${times}`;
+  if(s.type==='months') return `${(s.everyMonths||1)===1?'monatlich':'alle '+s.everyMonths+' Monate'} ${times}`;
   if(s.type==='cycle') return `${s.onDays} an / ${s.offDays} aus · ${times}`;
   return times;
 }
@@ -425,6 +502,10 @@ function renderMore(){
       : 'Benachrichtigungen, solange Dosia geöffnet ist (Browser-Version).'}</div>
     <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
       <input type="checkbox" id="setNotify" ${s.notify?'checked':''}> Erinnerungen aktivieren</label>
+    ${isNative ? `<label style="display:flex;align-items:center;gap:10px;margin-top:8px">
+      <input type="checkbox" id="setFollow" ${s.followUp?'checked':''}> Nachhaken, wenn nicht abgehakt – nach
+      <select id="setFollowMin" style="width:auto;padding:6px 8px">${[15,30,60,120].map(n=>`<option value="${n}" ${s.followUpMin===n?'selected':''}>${n<60?n+' Min.':(n/60)+' Std.'}</option>`).join('')}</select></label>
+    <div class="sub">In der Benachrichtigung kannst du direkt auf „✓ Genommen" oder „⏰ In 10 Min." tippen.</div>` : ''}
     ${isNative
       ? `<div class="hint">Falls keine Erinnerungen ankommen: In den Android-Einstellungen unter <b>Apps → Dosia → Benachrichtigungen</b> erlauben und bei <b>Akku</b> „nicht optimiert/uneingeschränkt" wählen, damit Android die App nicht einschläfert.</div>`
       : `<div class="notice">⚠ In der Browser-Version können Erinnerungen bei geschlossener Seite nicht garantiert werden. Für zuverlässige Erinnerungen die installierte App nutzen.</div>`}
@@ -439,7 +520,7 @@ function renderMore(){
 
   html+=`<div class="card">
     <div class="title">Notfall-Kontakt (MedFriend)</div>
-    <div class="sub">Nur lokal gespeichert – wird bei ausgelassenen Dosen angezeigt.</div>
+    <div class="sub">Nur auf diesem Gerät gespeichert. Ist eine Dosis seit über 2 Stunden offen, zeigt „Heute" den Kontakt mit Knöpfen zum Anrufen und für eine SMS.</div>
     <label>Name / Telefon</label>
     <input id="setMedfriend" value="${esc(s.medfriend||'')}" placeholder="z. B. Anna · 0170 …">
   </div>`;
@@ -466,11 +547,16 @@ function renderMore(){
   </div>`;
 
   html+=`<div class="hint">Dosia ersetzt keine ärztliche oder pharmazeutische Beratung. Prüfe Dosierungen und Wechselwirkungen immer mit Arzt oder Apotheke.</div>`;
+  if(window.DOSIA_PRIVACY_URL) html+=`<div class="sub center" style="margin-top:14px"><a href="${esc(window.DOSIA_PRIVACY_URL)}" style="color:var(--accent)">Datenschutzerklärung</a></div>`;
   html+=`<div class="sub center" style="margin-top:14px">Dosia ${APP_VERSION} · ${isNative?'App':'Browser'}${isNative&&!LN()?' · Benachrichtigungs-Plugin fehlt':''}</div>`;
 
   view.innerHTML=html;
 
   $('#setNotify').onchange=e=>{ act.toggleNotify(e.target.checked); };
+  if($('#setFollow')){
+    $('#setFollow').onchange=e=>{ DB.settings.followUp=e.target.checked; saveDB(); refreshReminders(); };
+    $('#setFollowMin').onchange=e=>{ DB.settings.followUpMin=+e.target.value; saveDB(); refreshReminders(); };
+  }
   $('#setMedfriend').onchange=e=>{ DB.settings.medfriend=e.target.value.trim(); saveDB(); };
   $('#themeChips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ act.setTheme(c.dataset.theme); });
   const ib=$('#installBtn'); if(deferredPrompt && ib){ ib.style.display='inline-block'; ib.onclick=()=>act.install(); }
@@ -515,6 +601,8 @@ function medForm(med){
       <option value="daily" ${s.type==='daily'?'selected':''}>Täglich</option>
       <option value="interval" ${s.type==='interval'?'selected':''}>Alle X Tage</option>
       <option value="weekdays" ${s.type==='weekdays'?'selected':''}>Bestimmte Wochentage</option>
+      <option value="weeks" ${s.type==='weeks'?'selected':''}>Alle X Wochen</option>
+      <option value="months" ${s.type==='months'?'selected':''}>Alle X Monate</option>
       <option value="cycle" ${s.type==='cycle'?'selected':''}>Zyklus (X Tage an / Y aus)</option>
     </select>
     <div id="schedExtra"></div>
@@ -531,8 +619,9 @@ function medForm(med){
     <hr class="sep"><div class="title" style="font-size:15px">Bestand</div>
     <div class="grid2">
       <div><label>Aktueller Bestand</label><input type="number" id="mStock" value="${m.stock??''}" placeholder="z. B. 30" min="0"></div>
-      <div><label>Warnen ab</label><input type="number" id="mThresh" value="${m.stockThreshold??''}" placeholder="z. B. 7" min="0"></div>
+      <div><label>Nachkauf-Erinnerung ab (Stück)</label><input type="number" id="mThresh" value="${m.stockThreshold??''}" placeholder="z. B. 7" min="0"></div>
     </div>
+    <div class="sub">Dosia zieht jede abgehakte Einnahme ab, zeigt an, wie viele Tage der Vorrat reicht, und erinnert rechtzeitig ans Nachkaufen. Nach dem Kauf hier den neuen Bestand eintragen.</div>
 
     <hr class="sep"><div class="title" style="font-size:15px">Gewicht</div>
     <label style="display:flex;align-items:center;gap:10px;color:var(--text)"><input type="checkbox" id="mWeight" ${m.trackWeight?'checked':''}> ⚖️ Gewicht mit erfassen</label>
@@ -566,6 +655,11 @@ function renderSchedExtra(){
   const t=tmpSched.type;
   if(t==='interval'){
     el.innerHTML=`<label>Alle wie viele Tage?</label><input type="number" min="1" id="mEvery" value="${tmpSched.everyDays||2}" onchange="tmpSched.everyDays=+this.value">`;
+  }else if(t==='weeks' || t==='months'){
+    const k = t==='weeks' ? 'everyWeeks' : 'everyMonths';
+    el.innerHTML=`<label>Alle wie viele ${t==='weeks'?'Wochen':'Monate'}?</label>
+      <input type="number" min="1" value="${tmpSched[k]||1}" onchange="tmpSched.${k}=Math.max(1,+this.value||1)">
+      <div class="sub">Gerechnet ab dem Startdatum unten – ohne Startdatum ab heute.${t==='months'?' Gibt es den Tag in einem Monat nicht (z. B. 31.), dann am Monatsletzten.':''}</div>`;
   }else if(t==='weekdays'){
     el.innerHTML=`<label>Wochentage</label><div class="chips">${[1,2,3,4,5,6,0].map(d=>`<span class="chip ${(tmpSched.weekdays||[]).includes(d)?'on':''}" onclick="act.toggleWd(${d},this)">${WD[d]}</span>`).join('')}</div>`;
   }else if(t==='cycle'){
@@ -655,7 +749,8 @@ const act = {
     }
     tmpTimes=[...new Set(tmpTimes)].sort();
     const sched={ type:$('#mType').value, times:tmpTimes,
-      everyDays:tmpSched.everyDays, weekdays:tmpSched.weekdays, onDays:tmpSched.onDays, offDays:tmpSched.offDays, anchor:tmpSched.anchor,
+      everyDays:tmpSched.everyDays, everyWeeks:tmpSched.everyWeeks, everyMonths:tmpSched.everyMonths,
+      weekdays:tmpSched.weekdays, onDays:tmpSched.onDays, offDays:tmpSched.offDays, anchor:tmpSched.anchor,
       start:$('#mStart').value||'', end:$('#mEnd').value||'' };
     const data={
       profileId, trackWeight:$('#mWeight').checked,
@@ -664,7 +759,12 @@ const act = {
       stockThreshold: $('#mThresh').value===''?0:Math.max(0,+$('#mThresh').value),
       notes:$('#mNotes').value.trim(), interact:$('#mInteract').checked, schedule:sched
     };
-    if(id){ Object.assign(DB.meds.find(m=>m.id===id), data); }
+    if(id){
+      const old = DB.meds.find(m=>m.id===id);
+      // Bestand aufgefüllt -> Nachkauf-Erinnerung wieder scharf schalten
+      if(typeof data.stock==='number' && (typeof old.stock!=='number' || data.stock > old.stock)) clearRestock(id);
+      Object.assign(old, data);
+    }
     else{ DB.meds.push(Object.assign({id:uid(),createdAt:new Date().toISOString(),archived:false}, data)); }
     saveDB(); closeModal(); render(); refreshReminders();
   },
@@ -747,10 +847,23 @@ const act = {
     saveDB(); await refreshReminders(); render();
   },
   setTheme(t){ DB.settings.theme=t; applyTheme(); saveDB(); render(); },
-  exportData(){
-    const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  async exportData(){
+    const name=`dosia-backup-${todayKey()}.json`, json=JSON.stringify(DB,null,2);
+    const P = Cap && Cap.Plugins;
+    // In der App: Datei anlegen und über das Android-Teilen-Menü speichern/teilen (Drive, Mail, Dateien …)
+    if(isNative && P && P.Filesystem && P.Share){
+      try{
+        const r = await P.Filesystem.writeFile({ path:name, data:json, directory:'CACHE', encoding:'utf8' });
+        await P.Share.share({ title:'Dosia-Backup', text:`Dosia-Backup vom ${new Date().toLocaleDateString('de-DE')}`, files:[r.uri], dialogTitle:'Backup speichern oder teilen' });
+      }catch(e){
+        if(!/cancel/i.test((e && e.message)||'')) alert('Backup konnte nicht exportiert werden: '+((e && e.message)||e));
+      }
+      return;
+    }
+    // Browser: normaler Download
+    const blob=new Blob([json],{type:'application/json'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download=`dosia-backup-${todayKey()}.json`; a.click(); URL.revokeObjectURL(a.href);
+    a.download=name; a.click(); URL.revokeObjectURL(a.href);
   },
   importData(){
     const inp=document.createElement('input'); inp.type='file'; inp.accept='application/json';
@@ -775,8 +888,18 @@ window.act=act;
 const Cap = window.Capacitor;
 const isNative = !!(Cap && typeof Cap.isNativePlatform==='function' && Cap.isNativePlatform());
 const LN = () => (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) || null;
-const NOTIF_WINDOW = 64;   // so viele kommende Dosen im Voraus einplanen
+const NOTIF_WINDOW = 48;   // so viele kommende Dosen im Voraus einplanen (plus je Medikament die nächste)
+const SNOOZE_MIN = 10;
+// Benachrichtigungs-IDs je Art: Dosis 1–999, Nachhaken 1000–1999, Schlummern 2000–2999, Nachkauf 3000–3999
+const NID = { dose:1, followup:1000, snooze:2000, restock:3000 };
 let channelReady = false;
+
+// "In 10 Min. erinnern": gemerkte Schlummer-Erinnerungen (überleben das Neuplanen)
+const SNOOZE_KEY = 'dosia.snooze.v1';
+function getSnoozes(){ try{ return JSON.parse(localStorage.getItem(SNOOZE_KEY)||'[]'); }catch{ return []; } }
+function setSnoozes(a){ try{ localStorage.setItem(SNOOZE_KEY, JSON.stringify(a)); }catch{} }
+function addSnooze(key, medId, time, at){ setSnoozes(getSnoozes().filter(s=>!(s.key===key&&s.medId===medId&&s.time===time)).concat([{key,medId,time,at}])); }
+function removeSnooze(key, medId, time){ setSnoozes(getSnoozes().filter(s=>!(s.key===key&&s.medId===medId&&s.time===time))); }
 
 // Texte der Erinnerung: bei mehreren Profilen steht dabei, für wen
 function reminderTitle(med){
@@ -787,23 +910,118 @@ function reminderBody(med, time){
   return [time, med.strength || 'Zeit für die Einnahme', med.trackWeight ? 'Gewicht erfassen' : ''].filter(Boolean).join(' · ');
 }
 
-// Nächste fällige Dosen über alle Medikamente (nur Zukunft, offene)
-function nextDoseOccurrences(limit){
-  const out=[]; const now=new Date();
-  for(let d=0; d<30 && out.length<limit*2; d++){
-    const day=new Date(now); day.setDate(now.getDate()+d); const key=todayKey(day);
+// Alle Dosen ab dem Tag von "start" für "days" Tage, mit Zeitpunkt
+function dosesBetween(start, days){
+  const out=[], base=new Date(start); base.setHours(0,0,0,0);
+  for(let d=0; d<days; d++){
+    const day=new Date(base); day.setDate(base.getDate()+d); const key=todayKey(day);
     for(const dose of dosesForDay(key)){
       const [h,m]=dose.time.split(':').map(Number);
       const when=new Date(day); when.setHours(h,m,0,0);
-      if(when.getTime() > now.getTime()+20000){
-        if(!(key===todayKey() && intakeState(key,dose.medId,dose.time))){
-          out.push({ when, med:dose.med, time:dose.time });
-        }
-      }
+      out.push({ when, key, med:dose.med, time:dose.time });
     }
   }
-  out.sort((a,b)=>a.when-b.when);
-  return out.slice(0,limit);
+  return out;
+}
+const doseOpen = o => !intakeState(o.key, o.med.id, o.time);
+
+// Nächste Dosis eines einzelnen Medikaments (für seltene Rhythmen, bis ~13 Monate voraus)
+function nextDoseOf(med, now){
+  const base=new Date(now); base.setHours(0,0,0,0);
+  for(let d=0; d<400; d++){
+    const day=new Date(base); day.setDate(base.getDate()+d); const key=todayKey(day);
+    if(!isActiveOn(med, key)) continue;
+    for(const t of [...(med.schedule?.times||[])].sort()){
+      const [h,m]=t.split(':').map(Number); const when=new Date(day); when.setHours(h,m,0,0);
+      const o={ when, key, med, time:t };
+      if(when>now && doseOpen(o)) return o;
+    }
+  }
+  return null;
+}
+
+// Wann erreicht der Bestand die Warnschwelle, wenn alle geplanten Dosen genommen werden?
+// Liefert { when, left } – Zeitpunkt und dann erwarteter Restbestand – oder null
+function stockLowDate(med, now){
+  let left = med.stock;
+  for(const o of dosesBetween(now, 400).filter(o=>o.med.id===med.id && o.when>now && doseOpen(o)).sort((a,b)=>a.when-b.when)){
+    left -= 1;
+    if(left <= med.stockThreshold) return { when:o.when, left:Math.max(0,left) };
+  }
+  return null;
+}
+const at9 = d => { const x=new Date(d); x.setHours(9,0,0,0); return x; };
+
+// Kompletter Erinnerungsplan: [{ kind, at, med, key?, time?, extraText? }]
+function reminderPlan(now=new Date()){
+  const plan=[], s=DB.settings;
+  if(!s.notify) return plan;
+
+  // 1) Dosen: rollierendes Fenster + je Medikament mindestens die nächste Dosis
+  const recent = dosesBetween(new Date(now.getTime()-86400000), 62).filter(doseOpen);   // ab gestern (Nachhaken über Mitternacht)
+  const doses = recent.filter(o=>o.when>now).sort((a,b)=>a.when-b.when).slice(0, NOTIF_WINDOW);
+  for(const med of DB.meds.filter(m=>!m.archived)){
+    if(doses.some(o=>o.med.id===med.id)) continue;
+    const nxt=nextDoseOf(med, now); if(nxt) doses.push(nxt);
+  }
+  doses.forEach(o=>plan.push({ kind:'dose', at:o.when, med:o.med, key:o.key, time:o.time }));
+
+  // 2) Nachhaken: für geplante und bereits fällige, noch offene Dosen
+  if(s.followUp){
+    const ms=(s.followUpMin||30)*60000, seen=new Set();
+    for(const o of recent.filter(o=>o.when<=now).concat(doses)){
+      const id=o.key+'|'+o.med.id+'|'+o.time; if(seen.has(id)) continue; seen.add(id);
+      const at=new Date(o.when.getTime()+ms);
+      if(at>now) plan.push({ kind:'followup', at, med:o.med, key:o.key, time:o.time });
+    }
+  }
+
+  // 3) Schlummern ("In 10 Min.")
+  for(const sn of getSnoozes()){
+    const med=DB.meds.find(m=>m.id===sn.medId);
+    if(med && !med.archived && sn.at>now.getTime() && !intakeState(sn.key, sn.medId, sn.time))
+      plan.push({ kind:'snooze', at:new Date(sn.at), med, key:sn.key, time:sn.time });
+  }
+
+  // 4) Nachkauf: einmal pro Knapp-Phase (zurückgesetzt, wenn der Bestand erhöht wird)
+  const rs=getRestock();
+  for(const med of DB.meds.filter(m=>!m.archived && typeof m.stock==='number' && m.stockThreshold>0)){
+    if(rs[med.id] && rs[med.id] <= now.getTime()) continue;              // bereits erinnert
+    let at, left;
+    if(med.stock <= med.stockThreshold){
+      at = rs[med.id] ? new Date(rs[med.id]) : at9(now) > now ? at9(now) : at9(new Date(now.getTime()+86400000));
+      left = med.stock;
+    } else {
+      const low=stockLowDate(med, now); if(!low) continue;
+      at = at9(low.when); if(at<=now) at=new Date(now.getTime()+60000);
+      left = low.left;
+    }
+    rs[med.id]=at.getTime();
+    // Text auf den Erinnerungszeitpunkt bezogen: erwarteter Rest und wie lange er dann noch reicht
+    const perDay=dosesPerDay(med);
+    plan.push({ kind:'restock', at, med, left, extraText: perDay>0 ? fmtDays(Math.floor(left/perDay)) : '' });
+  }
+  setRestock(rs);
+  return plan;
+}
+
+// Plan -> Benachrichtigungen für das Plugin
+function planToNotifications(plan){
+  const counters={ dose:0, followup:0, snooze:0, restock:0 };
+  return plan.map(p=>{
+    const n={ id: NID[p.kind] + (counters[p.kind]++), schedule:{ at:p.at, allowWhileIdle:true },
+              extra:{ kind:p.kind, medId:p.med.id, key:p.key||'', time:p.time||'' } };
+    if(p.kind==='restock'){
+      n.title = `🛒 Nachkaufen: ${p.med.name}`;
+      n.body  = `Noch etwa ${p.left} übrig${p.extraText?' · '+p.extraText:''}${multiProfile()?' · für '+profileById(p.med.profileId).name:''}`;
+    } else {
+      n.title = (p.kind==='followup' ? '⏰ Noch offen · ' : '') + reminderTitle(p.med);
+      n.body  = p.kind==='followup' ? `Noch nicht abgehakt · ${reminderBody(p.med, p.time)}` : reminderBody(p.med, p.time);
+      n.actionTypeId = 'DOSE';
+    }
+    if(channelReady) n.channelId='dosia-reminders';
+    return n;
+  });
 }
 
 async function ensureChannel(){
@@ -834,21 +1052,56 @@ async function nativeReschedule(){
       return;
     }
     if(!channelReady) await ensureChannel();
-    const occ = nextDoseOccurrences(NOTIF_WINDOW);
-    if(!occ.length) return;
-    const notifications = occ.map((o,i)=>{
-      const n = {
-        id: i+1,
-        title: reminderTitle(o.med),
-        body: reminderBody(o.med, o.time),
-        schedule: { at: o.when, allowWhileIdle: true }
-      };
-      if(channelReady) n.channelId='dosia-reminders';
-      return n;
-    });
-    await ln.schedule({ notifications });
+    const notifications = planToNotifications(reminderPlan());
+    if(notifications.length) await ln.schedule({ notifications });
+
+    // Bereits angezeigte Erinnerungen zu inzwischen erledigten Dosen aus der Leiste entfernen
+    try{
+      const del = await ln.getDeliveredNotifications();
+      const done = (del.notifications||[]).filter(n=>{ const x=n.extra||{}; return x.key && x.medId && intakeState(x.key, x.medId, x.time); });
+      if(done.length) await ln.removeDeliveredNotifications({ notifications: done });
+    }catch{}
   }catch(e){ console.warn('nativeReschedule', e); }
 }
+
+/* ---- Knöpfe in der Benachrichtigung: "✓ Genommen" / "⏰ In 10 Min." ---- */
+let visibleSince = Date.now();
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') visibleSince = Date.now(); });
+
+async function setupNotificationActions(){
+  const ln=LN(); if(!ln || !ln.registerActionTypes) return;
+  try{
+    await ln.registerActionTypes({ types:[{ id:'DOSE', actions:[
+      { id:'take',   title:'✓ Genommen' },
+      { id:'snooze', title:`⏰ In ${SNOOZE_MIN} Min.` }
+    ]}]});
+    await ln.addListener('localNotificationActionPerformed', ev=>handleNotificationAction(ev));
+  }catch(e){ console.warn('setupNotificationActions', e); }
+}
+
+async function handleNotificationAction(ev){
+  const n = (ev && ev.notification) || {}, x = n.extra || {}, actionId = ev && ev.actionId;
+  // Wurde die App erst durch den Knopf geöffnet? Dann danach wieder schließen.
+  const openedByAction = Date.now() - visibleSince < 4000;
+  try{ await LN().removeDeliveredNotifications({ notifications:[{ id:n.id }] }); }catch{}
+  const med = DB.meds.find(m=>m.id===x.medId);
+
+  if(actionId==='take' && med && x.key){
+    if(intakeState(x.key, med.id, x.time)?.status!=='taken') setIntake(x.key, med.id, x.time, 'taken');
+    currentTab='today'; closeModal(); render(); await refreshReminders();
+    // Gewicht fällig? Dann App offen lassen und danach fragen
+    if(med.trackWeight && x.key===todayKey() && !weightToday(med.profileId) && !weightSkipped(med.profileId)){ weightForm(med.profileId, med.id); return; }
+    if(openedByAction) minimizeApp();
+  } else if(actionId==='snooze' && med && x.key){
+    addSnooze(x.key, med.id, x.time, Date.now() + SNOOZE_MIN*60000);
+    await refreshReminders();
+    if(openedByAction) minimizeApp();
+  } else {
+    // normales Antippen: Dosia mit "Heute" (bzw. Medikamente bei Nachkauf) öffnen
+    currentTab = x.kind==='restock' ? 'meds' : 'today'; closeModal(); render();
+  }
+}
+function minimizeApp(){ try{ const A=Cap && Cap.Plugins && Cap.Plugins.App; if(A && A.minimizeApp) A.minimizeApp(); }catch{} }
 
 // Web-Fallback (nur geöffnet)
 let reminderTimer=null;
@@ -876,9 +1129,12 @@ function webCheck(){
 }
 
 // Einheitlicher Einstiegspunkt: nach jeder zeitplanrelevanten Änderung aufrufen
-async function refreshReminders(){
-  if(isNative){ await nativeReschedule(); }
-  else { webReminderLoop(); }
+// Neuplanungen laufen strikt nacheinander, damit sich Löschen und Einplanen nicht überschneiden
+let rescheduleChain = Promise.resolve();
+function refreshReminders(){
+  if(!isNative){ webReminderLoop(); return Promise.resolve(); }
+  rescheduleChain = rescheduleChain.then(()=>nativeReschedule()).catch(e=>console.warn('refreshReminders', e));
+  return rescheduleChain;
 }
 
 /* ======================================================================
@@ -910,6 +1166,8 @@ if('serviceWorker' in navigator){
 applyTheme();
 render();
 // Beim Start: Kanal sicherstellen und Erinnerungen (neu) einplanen
-(async()=>{ if(isNative){ await ensureChannel(); } await refreshReminders(); })();
+(async()=>{ if(isNative){ await ensureChannel(); await setupNotificationActions(); } await refreshReminders(); })();
+// Beim Zurückkehren in die App: Ansicht und Erinnerungen auffrischen (z. B. nach Tageswechsel)
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ render(); refreshReminders(); } });
 // Google-Drive-Sicherung: spätestens alle 24 h
 GDrive.onStart();
