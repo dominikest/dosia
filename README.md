@@ -1,140 +1,94 @@
-# Dosia – Medikamentenverwaltung (Android, Play-Store-ready)
+# Dosia – Medikamente im Griff
 
-Persönliche Medikamentenverwaltung. Eigener Code, eigenes Design. Alle Daten bleiben
-**lokal auf dem Gerät** (localStorage im eingebetteten WebView) – kein Server, kein Konto, keine Cloud.
+Android-App zur Medikamentenverwaltung für dich, Angehörige und Haustiere – mit zuverlässigen
+Erinnerungen, Vorratsübersicht und Messwerten. Alle Daten bleiben **auf dem Gerät**; optional
+Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbung.
 
-- **App-ID:** `de.dominikest.dosia`
-- **Version:** 1.0.0 (versionCode 1)
-- **minSdk 24** (Android 7+), **targetSdk 36** (erfüllt die aktuelle Play-Anforderung)
-- **Stack:** Capacitor 8 · AGP 8.13 · Gradle 8.14.3
+- **Homepage & Download:** https://dosia.iamdomi.de
+- **Aktuelle Version:** siehe `version` in [package.json](package.json) · Änderungen im [CHANGELOG](CHANGELOG.md)
+- **App-ID:** `de.dominikest.dosia` · **minSdk 24** (Android 7+) · **targetSdk 36**
+- **Stack:** Capacitor 8 (WebView-App aus `www/`) · AGP 8.13 · Gradle 8.14.3
+
+## Funktionen
+- **Personen & Tiere:** Medikamente getrennt für dich, Angehörige, Hund, Katze, Kaninchen, Vogel, Pferd …
+- **Einnahmepläne:** täglich, bestimmte Wochentage, alle X Tage / Wochen / Monate, Zyklus (an/aus), mehrere Uhrzeiten, Start/Ende
+- **Erinnerungen:** native Android-Benachrichtigungen, auch bei geschlossener App und nach Neustart;
+  Knöpfe **„✓ Genommen"** und **„⏰ In 10 Min."** direkt in der Benachrichtigung; **Nachhaken**, wenn nicht abgehakt
+- **Heute-Ansicht:** abhaken / überspringen, Tagesfortschritt, Hinweise auf fälliges Gewicht und knappen Vorrat
+- **Vorrat:** Bestand wird beim Abhaken abgezogen, Reichweite in Tagen, **Nachkauf-Erinnerung**
+- **Gewicht zum Medikament:** pro Medikament zuschaltbar – Abfrage beim ersten Abhaken des Tages
+- **Messwerte** mit Verlauf: Gewicht, Blutdruck, Blutzucker, Puls, Temperatur, eigene Werte – je Person/Tier
+- **Verlauf & Therapietreue** (7/30 Tage, letzte 14 Tage)
+- **Notfall-Kontakt:** bei Dosen > 2 Std. offen mit Anruf-/SMS-Knopf
+- **Sicherung:** automatisch in Google Drive (versteckter App-Ordner) und Backup-Datei über das Teilen-Menü
 
 ## Projektstruktur
 ```
 Dosia/
-  www/                     Die eigentliche App (HTML/CSS/JS) – Single Source of Truth
-  assets/                  Icon-Quellen (1024px) für die Icon-Generierung
-  android/                 Capacitor-Android-Projekt (generiert)
-  .github/workflows/       GitHub-Actions-Build (signiertes AAB/APK)
-  capacitor.config.json    App-ID, Name, webDir
-  package.json             npm-Scripts
-  dosia-upload.keystore    Release-Signaturschlüssel  (NICHT im Git)
-  keystore.properties      Keystore-Zugangsdaten      (NICHT im Git)
-  KEYSTORE-PASSWORT.txt    Passwort-Notiz             (NICHT im Git)
-  KEYSTORE-BASE64.txt      Keystore als Base64 fürs CI-Secret (NICHT im Git)
+  www/                    Die App (HTML/CSS/JS) – app.js, gdrive.js, index.html; version.js wird erzeugt
+  android/                Capacitor-Android-Projekt (u. a. GoogleDrivePlugin.java, Signatur-Konfiguration)
+  assets/                 Icon-Quellen (1024 px) für die Icon-Generierung
+  scripts/                write-version.mjs (Version + Datenschutz-URL aus package.json -> www/version.js)
+  website/                Homepage (PHP): Präsentation, Download der neuesten APK, Impressum, Datenschutz
+  .github/workflows/      Release-Build in GitHub Actions (signiertes AAB + APK)
+  package.json            Version, Datenschutz-URL (dosia.privacyUrl), npm-Scripts
+
+Nicht im Git (lokal sichern!): dosia-upload.keystore, keystore.properties, KEYSTORE-*.txt,
+website/config.php, release/, *.apk/*.aab
 ```
-
-## Funktionen
-Medikamente (Form/Stärke/Farbe) · Einnahmeplan (täglich · alle X Tage · Wochentage · Zyklus) ·
-mehrere Uhrzeiten · Heute-Ansicht mit Abhaken · Erinnerungen · Bestand mit Warnung ·
-Messwerte (Blutdruck, Blutzucker, Gewicht …) mit Verlauf · Therapietreue · Backup-Export/Import.
-
----
 
 ## Entwicklung
-
-Web-Teil ändern → in `www/` arbeiten, dann:
+In `www/` arbeiten, dann ins Android-Projekt übernehmen:
 ```bash
 npm install
-npx cap copy android
+npm run sync
 ```
+`npm run sync` schreibt `www/version.js` und führt `cap sync android` aus.
+Icons neu erzeugen (Quellen in `assets/`): `npm run icons`
 
-Icons neu erzeugen (Quellen in `assets/`):
-```bash
-npm run icons
-```
+> Hinweis: Auf dem Entwicklungsrechner blockiert eine Security-Software AF_UNIX-Sockets und bricht HTTPS auf;
+> der Android-Build (AGP 8) läuft dort nicht. Gebaut wird deshalb in GitHub Actions.
 
----
+## Neue Version veröffentlichen
+1. `version` in `package.json` erhöhen (z. B. `1.3.0` → `1.4.0`). Daraus folgen automatisch
+   `versionName`, `versionCode` (1.4.0 → 10400), die Anzeige in der App und die Dateinamen.
+2. Eintrag im [CHANGELOG](CHANGELOG.md) ergänzen, committen, pushen.
+3. GitHub → **Actions → „Android Release (AAB + APK)" → Run workflow**
+   (nicht „Re-run" bei einem alten Lauf – das baut den alten Stand).
+4. Unter dem Lauf → **Artifacts**: `Dosia-<Version>.aab` (Play Store) und `Dosia-<Version>.apk` (direkt installieren).
+5. Für die Homepage die APK nach `website/download/` legen und hochladen – die Seite bietet automatisch die höchste Version an.
 
-## Release bauen (signiertes AAB für den Play Store)
+### Signatur (einmalig eingerichtet)
+GitHub-Secrets: `DOSIA_KEYSTORE_BASE64`, `DOSIA_STORE_PASSWORD`, `DOSIA_KEY_PASSWORD`, `DOSIA_KEY_ALIAS` (= `dosia`).
 
-Der lokale Rechner kann den modernen Build wegen einer Security-Software (blockiert AF_UNIX-Sockets)
-nicht ausführen. Daher läuft der Release-Build in **GitHub Actions** auf Linux.
+> ⚠️ **Keystore sichern!** `dosia-upload.keystore` + Passwort sind für **alle** künftigen Updates nötig.
+> Ohne sie kann die App (auch im Play Store) nicht mehr aktualisiert werden. Passwortmanager + separates Backup.
 
-### Einmalig einrichten
-1. Dieses Projekt in ein (privates) GitHub-Repo pushen.
-2. Im Repo → **Settings → Secrets and variables → Actions** diese Secrets anlegen:
-   | Secret | Wert |
-   |---|---|
-   | `DOSIA_KEYSTORE_BASE64` | kompletter Inhalt von `KEYSTORE-BASE64.txt` |
-   | `DOSIA_STORE_PASSWORD` | Passwort aus `KEYSTORE-PASSWORT.txt` |
-   | `DOSIA_KEY_PASSWORD` | dasselbe Passwort |
-   | `DOSIA_KEY_ALIAS` | `dosia` |
+## Google-Drive-Sicherung (Google Cloud, Projekt „Dosia")
+Scope `drive.appdata` (nur versteckter App-Ordner). Eingerichtet: Drive-API aktiviert, Google Auth Platform
+(Extern, Status „Testen"), Testnutzer, Android-Client mit Paketname `de.dominikest.dosia` und
+SHA-1 des Upload-Keys `14:D7:58:F0:28:90:AA:9A:50:97:13:EC:46:FD:B4:86:DD:66:FD:82`.
 
-### Neue Version
-Die Version steht **nur** in `package.json` (`"version": "1.2.3"`). Daraus ergeben sich automatisch:
-- `versionName` 1.2.3 und `versionCode` 10203 im Android-Build (steigt mit jeder Version, wie Play es verlangt)
-- die Anzeige in der App (Mehr → ganz unten), über das erzeugte `www/version.js`
-- die Dateinamen: `Dosia-1.2.3.apk` / `Dosia-1.2.3.aab`
+**Für den Play Store noch nötig:**
+- Zweiter Android-Client mit dem SHA-1 des **App-Signaturschlüssels** aus der Play Console (*App-Integrität*)
+- App in der Google Auth Platform von „Testen" auf **„In Produktion"** stellen
 
-Also: Version in `package.json` erhöhen, committen, pushen, Build auslösen.
+Fehlercode `API_10` in der App = Client fehlt oder SHA-1/Paketname passt nicht.
 
-### Build auslösen
-- In GitHub → **Actions → „Android Release" → Run workflow**, oder
-- einen Tag pushen: `git tag v1.0.0 && git push origin v1.0.0`
+## Homepage (`website/`)
+- `index.php` – Präsentation + Download der neuesten `download/Dosia-x.y.z.apk`
+- `impressum.php`, `datenschutz.php` (Website), `datenschutz-app.php` (App, für Play Console und In-App-Link)
+- Persönliche Angaben nur in `website/config.php` (Vorlage: `config.example.php`), E-Mail wird spamgeschützt ausgegeben
+- Die URL der App-Datenschutzerklärung steht in `package.json` unter `dosia.privacyUrl`
 
-Nach dem Lauf unter **Actions → der Lauf → Artifacts**:
-- `Dosia-<Version>-aab` → `Dosia-<Version>.aab` (das lädst du in den Play Store hoch)
-- `Dosia-<Version>-apk` → `Dosia-<Version>.apk` (zum direkten Testen auf dem Handy)
+## Play-Store-Checkliste
+**Erledigt:** App-ID, targetSdk 36, Icons, Release-Signatur, AAB-Build, Datenschutzerklärung (Website + App, In-App-Link)
 
-> ⚠️ **Keystore sichern!** `dosia-upload.keystore` + Passwort sind für **alle** zukünftigen
-> Updates nötig. Gehen sie verloren, kannst du die App im Play Store nicht mehr aktualisieren.
-> In einem Passwortmanager und einem separaten Backup aufbewahren.
+**Offen (Play Console):**
+- [ ] Entwicklerkonto; bei neuen privaten Konten: geschlossener Test mit mind. 12 Testern über 14 Tage
+- [ ] AAB hochladen, Play App Signing aktivieren, danach zweiten OAuth-Client anlegen (siehe oben)
+- [ ] Datensicherheit: Daten bleiben auf dem Gerät; optionale Sicherung in Google Drive des Nutzers
+- [ ] Gesundheits-App-Erklärung, Begründung für exakte Alarme (zeitgenaue Einnahme-Erinnerungen)
+- [ ] Store-Eintrag: Texte, mind. 2 Screenshots, Feature-Grafik 1024×500, Altersfreigabe
 
----
-
-## Google-Drive-Sicherung – Einrichtung bei Google (einmalig)
-
-Dosia sichert die Daten in den versteckten App-Ordner im Google Drive des Nutzers
-(Scope `drive.appdata` – kein Zugriff auf andere Dateien). Damit die Anmeldung funktioniert,
-muss die App in der Google Cloud Console registriert sein:
-
-1. https://console.cloud.google.com → neues Projekt **„Dosia"**
-2. **APIs & Dienste → Bibliothek → „Google Drive API" → Aktivieren**
-3. **Google Auth Platform** (früher „OAuth-Zustimmungsbildschirm") → Erste Schritte:
-   App-Name „Dosia", Support-E-Mail, Zielgruppe **Extern**
-4. **Datenzugriff → Bereiche hinzufügen** → `https://www.googleapis.com/auth/drive.appdata`
-5. **Zielgruppe → Testnutzer** → eigene Gmail-Adresse eintragen
-   (solange die App im Status „Testen" ist, können sich nur Testnutzer anmelden)
-6. **Clients → Client erstellen → Typ „Android"**
-   - Paketname: `de.dominikest.dosia`
-   - SHA-1 (Upload-Key, für die APKs aus GitHub Actions):
-     `14:D7:58:F0:28:90:AA:9A:50:97:13:EC:46:FD:B4:86:DD:66:FD:82`
-7. **Nach dem ersten Play-Upload:** Play Console → *App-Integrität* → SHA-1 des
-   **App-Signaturschlüssels** kopieren und einen **zweiten** Android-Client mit diesem SHA-1 anlegen.
-   Sonst funktioniert die Anmeldung in der Play-Version nicht.
-8. Vor der Veröffentlichung: in der Google Auth Platform die App von „Testen" auf **„In Produktion"** stellen.
-
-Fehler in der App „…noch nicht freigeschaltet" (Code API_10) = Client fehlt oder SHA-1/Paketname passt nicht
-(nach dem Anlegen manchmal ein paar Minuten warten).
-
-**Datenschutz/Play:** Mit der Drive-Sicherung verlassen Daten (auf Wunsch des Nutzers) das Gerät –
-Datenschutzerklärung und Data-Safety-Angaben entsprechend formulieren.
-
----
-
-## Play-Store-Einreichung – Checkliste
-
-**Technisch – erledigt:**
-- [x] Eigene App-ID, Name, Version, targetSdk 36
-- [x] Launcher-Icons inkl. adaptive icons + Play-Store-Icon (512px in `assets/`)
-- [x] Release-Signatur konfiguriert
-- [x] AAB-Build (GitHub Actions)
-
-**Noch von dir zu erledigen (im Play Console-Konto):**
-- [ ] Google-Play-Entwicklerkonto (einmalig 25 USD)
-- [ ] App anlegen, `app-release.aab` als internen Test hochladen
-- [ ] **Datenschutzerklärung** (URL) – Pflicht. Da Dosia nur lokal speichert, genügt eine kurze Seite,
-      die sagt: keine Datenerhebung, keine Übertragung an Server/Dritte.
-- [ ] **Data-Safety-Formular**: „Es werden keine Daten erfasst/geteilt" (trifft hier zu).
-- [ ] Store-Eintrag: Kurz-/Vollbeschreibung, mind. 2 Screenshots (Telefon), Feature-Grafik 1024×500.
-- [ ] Inhaltsbewertung (Fragebogen), Zielgruppe/Alter.
-- [ ] **Gesundheits-App-Erklärung:** Play fragt bei Medikamenten-/Gesundheits-Apps ggf. nach. Dosia ist
-      ein reines Erinnerungs-/Tracking-Tool ohne medizinische Beratung – das so angeben.
-
-**Wichtiger Hinweis in der App-Beschreibung empfohlen:** Dosia ersetzt keine ärztliche/pharmazeutische
-Beratung; Erinnerungen können bei geschlossener App nicht garantiert werden.
-
----
-
-## Datensicherung für Nutzer
-Die App-Daten liegen nur im Gerät. In der App unter **Mehr → Backup exportieren** sichern.
+Dosia ersetzt keine ärztliche, tierärztliche oder pharmazeutische Beratung.
