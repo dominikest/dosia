@@ -91,7 +91,18 @@ public class GoogleDrivePlugin extends Plugin {
         if (call == null) return;
 
         if (activityResult.getResultCode() != Activity.RESULT_OK || activityResult.getData() == null) {
-            call.reject("Anmeldung abgebrochen", "CANCELED");
+            // Google meldet Konfigurationsfehler hier oft nur als "abgebrochen". Steckt im Intent
+            // ein Status, den genauen Fehlercode herausholen (z. B. 10 = OAuth-Client/SHA-1 passt nicht).
+            if (activityResult.getData() != null) {
+                try {
+                    Identity.getAuthorizationClient(getActivity())
+                        .getAuthorizationResultFromIntent(activityResult.getData());
+                } catch (ApiException e) {
+                    rejectWith(call, e);
+                    return;
+                }
+            }
+            call.reject("Anmeldung abgebrochen (Ergebnis " + activityResult.getResultCode() + ")", "CANCELED");
             return;
         }
         try {

@@ -33,7 +33,9 @@ const GDrive = (() => {
     const code = (e && e.code) || '';
     if(code === 'API_10') return 'Google-Anmeldung ist für diese App noch nicht freigeschaltet (OAuth-Client in der Google Cloud Console fehlt oder der SHA-1-Fingerabdruck passt nicht).';
     if(code === 'API_7' || /network|Failed to fetch|Unable to resolve/i.test(e && e.message || '')) return 'Keine Internetverbindung.';
-    if(code === 'CANCELED') return 'Anmeldung abgebrochen.';
+    if(code === 'API_12501') return 'Anmeldung abgebrochen.';
+    if(code === 'CANCELED') return 'Anmeldung abgebrochen. Falls du nicht selbst abgebrochen hast: Die App ist bei Google noch nicht vollständig eingerichtet (Testnutzer eingetragen? Android-Client mit Paketname und SHA-1 angelegt?).';
+    if(/^API_\d+$/.test(code)) return `Google-Anmeldung fehlgeschlagen (Code ${code.slice(4)}): ${(e && e.message) || ''}`.trim();
     if(code === 'CONSENT_REQUIRED') return 'Automatische Sicherung fehlgeschlagen: Google möchte den Zugriff neu bestätigt haben. Tippe auf „Jetzt sichern".';
     if(e && e.status === 401) return 'Zugriff abgelaufen. Bitte erneut mit Google verbinden.';
     if(e && e.status === 403) return 'Google Drive hat den Zugriff verweigert (ist die Drive-API im Cloud-Projekt aktiviert?).';
