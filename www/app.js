@@ -6,12 +6,26 @@
 const APP_VERSION = window.DOSIA_VERSION || '?';   // kommt aus version.js (package.json)
 const DB_KEY = 'dosia.db.v1';
 const defaultDB = () => ({
-  version: 1,
-  meds: [],          // {id,name,form,strength,color,icon,stock,stockThreshold,schedule,notes,interact,createdAt,archived}
+  version: 2,
+  profiles: [{ id:'me', name:'Ich', kind:'person' }],   // für wen: Personen oder Tiere
+  meds: [],          // {id,profileId,name,form,strength,color,stock,stockThreshold,schedule,notes,interact,trackWeight,createdAt,archived}
   intake: {},        // { "YYYY-MM-DD": { "medId|HH:MM": {status:'taken'|'skipped', ts} } }
-  measures: [],      // {id,type,value,value2,unit,ts,note}
-  settings: { notify:false, theme:'auto', medfriend:'' }
+  measures: [],      // {id,profileId,medId?,type,value,value2,unit,ts,note}
+  settings: { notify:false, theme:'auto', medfriend:'', profileFilter:'all' }
 });
+
+// Ältere Datenstände (auch aus Backups) auf das aktuelle Modell bringen
+function migrate(d){
+  const db = Object.assign(defaultDB(), d || {});
+  db.settings = Object.assign(defaultDB().settings, (d && d.settings) || {});
+  if(!Array.isArray(db.profiles) || !db.profiles.length) db.profiles = defaultDB().profiles;
+  const ids = new Set(db.profiles.map(p=>p.id)), first = db.profiles[0].id;
+  for(const m of db.meds){ if(!ids.has(m.profileId)) m.profileId = first; if(m.trackWeight === undefined) m.trackWeight = false; }
+  for(const x of db.measures){ if(!ids.has(x.profileId)) x.profileId = first; }
+  if(db.settings.profileFilter !== 'all' && !ids.has(db.settings.profileFilter)) db.settings.profileFilter = 'all';
+  db.version = 2;
+  return db;
+}
 
 let DB = loadDB();
 
@@ -19,8 +33,7 @@ function loadDB(){
   try{
     const raw = localStorage.getItem(DB_KEY);
     if(!raw) return defaultDB();
-    const d = JSON.parse(raw);
-    return Object.assign(defaultDB(), d);
+    return migrate(JSON.parse(raw));
   }catch(e){ console.warn('DB load failed', e); return defaultDB(); }
 }
 function saveDB(opts){
@@ -31,7 +44,7 @@ function saveDB(opts){
 }
 // Kompletten Datenbestand ersetzen (Backup-Import, Wiederherstellung aus Google Drive)
 function replaceDB(d, opts){
-  DB = Object.assign(defaultDB(), d);
+  DB = migrate(d);
   saveDB(opts); render(); refreshReminders();
 }
 
@@ -43,6 +56,8 @@ const todayKey = (d=new Date())=> `${d.getFullYear()}-${pad(d.getMonth()+1)}-${p
 const fmtDate = d => d.toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const WD = ['So','Mo','Di','Mi','Do','Fr','Sa']; // getDay(): 0=So
+// Zahl aus Eingabe mit Komma oder Punkt ("12,5" / "12.5"); leer/ungültig -> NaN
+const parseNum = s => { const t=String(s??'').trim().replace(/\s/g,'').replace(',','.'); return /^-?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : NaN; };
 
 const FORMS = [
   {v:'tablette',t:'Tablette',ic:'💊'},{v:'kapsel',t:'Kapsel',ic:'💊'},
@@ -51,6 +66,47 @@ const FORMS = [
   {v:'saft',t:'Saft',ic:'🥤'},{v:'pflaster',t:'Pflaster',ic:'🩹'},{v:'sonstige',t:'Sonstige',ic:'➕'}
 ];
 const formIcon = f => (FORMS.find(x=>x.v===f)||{}).ic || '💊';
+
+/* ---------- Profile (Person / Tier) ---------- */
+const PROFILE_KINDS = [
+  {v:'person',t:'Person',ic:'🧑'},{v:'hund',t:'Hund',ic:'🐶'},{v:'katze',t:'Katze',ic:'🐱'},
+  {v:'kaninchen',t:'Kaninchen',ic:'🐰'},{v:'vogel',t:'Vogel',ic:'🐦'},{v:'pferd',t:'Pferd',ic:'🐴'},
+  {v:'tier',t:'Anderes Tier',ic:'🐾'}
+];
+const kindIcon = k => (PROFILE_KINDS.find(x=>x.v===k)||PROFILE_KINDS[0]).ic;
+const profileById = id => DB.profiles.find(p=>p.id===id) || DB.profiles[0];
+const profileLabel = p => `${kindIcon(p.kind)} ${esc(p.name)}`;
+const multiProfile = () => DB.profiles.length > 1;
+// Gilt der aktuelle Profil-Filter (oben in den Ansichten) für dieses Profil?
+const inFilter = pid => DB.settings.profileFilter === 'all' || DB.settings.profileFilter === pid;
+
+function profileBar(){
+  if(!multiProfile()) return '';
+  const f = DB.settings.profileFilter;
+  return `<div class="chips pbar">
+    <span class="chip ${f==='all'?'on':''}" onclick="act.setProfileFilter('all')">Alle</span>
+    ${DB.profiles.map(p=>`<span class="chip ${f===p.id?'on':''}" onclick="act.setProfileFilter('${p.id}')">${profileLabel(p)}</span>`).join('')}
+  </div>`;
+}
+
+/* ---------- Gewicht zum Medikament ---------- */
+function weightToday(profileId, key=todayKey()){
+  return DB.measures.some(m => m.type==='weight' && m.profileId===profileId && todayKey(new Date(m.ts))===key);
+}
+const WSKIP_KEY = () => 'dosia.wskip.' + todayKey();
+function weightSkipped(pid){ try{ return JSON.parse(localStorage.getItem(WSKIP_KEY())||'[]').includes(pid); }catch{ return false; } }
+function markWeightSkipped(pid){ try{ const a=JSON.parse(localStorage.getItem(WSKIP_KEY())||'[]'); a.push(pid); localStorage.setItem(WSKIP_KEY(), JSON.stringify(a)); }catch{} }
+// Profile (im Filter), für die heute ein Medikament mit Gewichtserfassung läuft und noch kein Gewicht erfasst ist
+function weightDueProfiles(key=todayKey()){
+  const due = new Set();
+  for(const m of DB.meds){
+    if(m.archived || !m.trackWeight || !inFilter(m.profileId)) continue;
+    const s = m.schedule || {};
+    if((s.start && key < s.start) || (s.end && key > s.end)) continue;
+    if(!weightToday(m.profileId, key)) due.add(m.profileId);
+  }
+  return [...due].map(profileById);
+}
 
 /* ---------- Zeitplan-Engine ----------
    schedule = { type:'daily'|'interval'|'weekdays'|'cycle', times:['08:00',...],
@@ -64,7 +120,9 @@ function daysBetween(aKey,bKey){
 }
 function isActiveOn(med, dateKey){
   const s = med.schedule||{};
-  if(s.start && dateKey < s.start) return false;
+  // Ohne Startdatum gilt der Tag der Anlage als Start – sonst zählten frühere Tage als "nicht genommen"
+  const startKey = s.start || (med.createdAt ? todayKey(new Date(med.createdAt)) : '');
+  if(startKey && dateKey < startKey) return false;
   if(s.end && dateKey > s.end) return false;
   if(s.type==='interval'){
     const base = s.start || med.createdAt?.slice(0,10) || dateKey;
@@ -98,6 +156,8 @@ function dosesForDay(dateKey){
   out.sort((a,b)=> a.time.localeCompare(b.time) || a.med.name.localeCompare(b.med.name));
   return out;
 }
+// Dosen eines Tages für die Anzeige (Profil-Filter). Erinnerungen nutzen weiter dosesForDay (alle Profile).
+const visibleDoses = dateKey => dosesForDay(dateKey).filter(d => inFilter(d.med.profileId));
 function intakeState(dateKey, medId, time){
   return DB.intake[dateKey]?.[medId+'|'+time] || null;
 }
@@ -130,7 +190,7 @@ function adherence(days=7){
   for(let i=0;i<days;i++){
     const d=new Date(now); d.setDate(now.getDate()-i);
     const key=todayKey(d);
-    for(const dose of dosesForDay(key)){
+    for(const dose of visibleDoses(key)){
       // Nur vergangene/aktuelle Dosen zählen
       if(key===todayKey() ){
         const [h,m]=dose.time.split(':').map(Number);
@@ -159,9 +219,18 @@ function render(){
 /* ---- Heute ---- */
 function renderToday(){
   const key=todayKey();
-  const doses=dosesForDay(key);
-  const ad=adherence(1);
-  let html = `<h2 class="section">Heute · ${doses.length} ${doses.length===1?'Dosis':'Dosen'}</h2>`;
+  const doses=visibleDoses(key);
+  let html = profileBar() + `<h2 class="section">Heute · ${doses.length} ${doses.length===1?'Dosis':'Dosen'}</h2>`;
+
+  // Gewicht fällig (Medikament mit Gewichtserfassung läuft, heute noch kein Gewicht)
+  for(const p of weightDueProfiles(key)){
+    html += `<div class="card"><div class="row">
+      <div class="pill">⚖️</div>
+      <div class="grow"><div class="title">Gewicht${multiProfile()?' · '+profileLabel(p):''}</div>
+        <div class="sub">Heute noch nicht erfasst</div></div>
+      <button class="btn-primary btn-sm" onclick="act.weightForm('${p.id}')">Erfassen</button>
+    </div></div>`;
+  }
 
   if(!doses.length){
     html += `<div class="empty"><div class="big">🗓️</div>Für heute sind keine Einnahmen geplant.<br><span class="muted">Lege unter „Medikamente" etwas an.</span></div>`;
@@ -191,7 +260,7 @@ function renderToday(){
       html += `<div class="dose-item ${taken?'state-taken':''}">
         <div class="pill" style="background:${d.med.color||'var(--surface-2)'}22">${formIcon(d.med.form)}</div>
         <div class="grow"><div class="title">${esc(d.med.name)}</div>
-          <div class="sub">${esc(d.med.strength||'')} ${skip?'· <span style="color:var(--danger)">übersprungen</span>':''} ${taken?'· <span style="color:var(--ok)">genommen</span>':''}</div></div>
+          <div class="sub">${multiProfile()&&DB.settings.profileFilter==='all'?profileLabel(profileById(d.med.profileId))+' · ':''}${esc(d.med.strength||'')}${d.med.trackWeight?' · ⚖️':''} ${skip?'· <span style="color:var(--danger)">übersprungen</span>':''} ${taken?'· <span style="color:var(--ok)">genommen</span>':''}</div></div>
         <div class="take">
           <button class="btn-round ${taken?'btn-primary':''}" title="Genommen" onclick="act.take('${key}','${d.medId}','${d.time}')">✓</button>
           <button class="btn-round ${skip?'btn-danger':'btn-ghost'}" title="Überspringen" onclick="act.skip('${key}','${d.medId}','${d.time}')">⤬</button>
@@ -204,13 +273,21 @@ function renderToday(){
 
 /* ---- Medikamente ---- */
 function renderMeds(){
-  const meds=DB.meds.filter(m=>!m.archived);
-  let html=`<h2 class="section">Medikamente · ${meds.length}</h2>`;
+  const meds=DB.meds.filter(m=>!m.archived && inFilter(m.profileId));
+  let html=profileBar() + `<h2 class="section">Medikamente · ${meds.length}</h2>`;
   if(!meds.length){
     html+=`<div class="empty"><div class="big">💊</div>Noch keine Medikamente.<br><span class="muted">Tippe auf „+", um eines anzulegen.</span></div>`;
     view.innerHTML=html; return;
   }
-  for(const med of meds){
+  // Bei "Alle" und mehreren Profilen nach Profil gruppieren
+  const grouped = multiProfile() && DB.settings.profileFilter==='all';
+  let lastPid = null;
+  const sorted = grouped ? [...meds].sort((a,b)=> DB.profiles.findIndex(p=>p.id===a.profileId) - DB.profiles.findIndex(p=>p.id===b.profileId)) : meds;
+  for(const med of sorted){
+    if(grouped && med.profileId!==lastPid){
+      lastPid = med.profileId;
+      html += `<h2 class="section" style="margin-top:14px">${profileLabel(profileById(med.profileId))}</h2>`;
+    }
     const low = typeof med.stock==='number' && med.stock<= (med.stockThreshold??0) && (med.stockThreshold>0);
     const sched=scheduleSummary(med.schedule);
     html+=`<div class="card"><div class="row">
@@ -221,6 +298,7 @@ function renderMeds(){
         <div style="margin-top:6px">
           ${typeof med.stock==='number'?`<span class="tag ${low?'danger':'ok'}">Bestand: ${med.stock}${low?' · niedrig':''}</span>`:''}
           ${med.interact?`<span class="tag warn">⚠ Wechselwirkung</span>`:''}
+          ${med.trackWeight?`<span class="tag">⚖️ Gewicht</span>`:''}
         </div>
       </div>
       <button class="btn-round btn-ghost" onclick="act.editMed('${med.id}')">✎</button>
@@ -249,19 +327,23 @@ const MEASURE_TYPES=[
 ];
 const mType=v=>MEASURE_TYPES.find(t=>t.v===v)||MEASURE_TYPES[5];
 function renderMeasure(){
-  let html=`<h2 class="section">Messwerte</h2>`;
-  const byType={};
-  for(const m of DB.measures){ (byType[m.type]=byType[m.type]||[]).push(m); }
-  if(!DB.measures.length){
+  let html=profileBar() + `<h2 class="section">Messwerte</h2>`;
+  const visible = DB.measures.filter(m=>inFilter(m.profileId));
+  // Gruppen je Profil und Art (Gewicht von "Ich" und "Bello" getrennt)
+  const groups={};
+  for(const m of visible){ const k=m.profileId+'|'+m.type; (groups[k]=groups[k]||[]).push(m); }
+  if(!visible.length){
     html+=`<div class="empty"><div class="big">📈</div>Noch keine Messwerte.<br><span class="muted">„+" erfasst Blutdruck, Blutzucker, Gewicht …</span></div>`;
     view.innerHTML=html; return;
   }
-  for(const type of Object.keys(byType)){
+  const order = k => { const [pid,type]=k.split('|'); return DB.profiles.findIndex(p=>p.id===pid)*100 + MEASURE_TYPES.findIndex(t=>t.v===type); };
+  for(const gk of Object.keys(groups).sort((a,b)=>order(a)-order(b))){
+    const [pid,type]=gk.split('|');
     const t=mType(type);
-    const list=byType[type].sort((a,b)=>b.ts-a.ts);
+    const list=groups[gk].sort((a,b)=>b.ts-a.ts);
     const last=list[0];
     html+=`<div class="card"><div class="row"><div class="pill">${t.ic}</div>
-      <div class="grow"><div class="title">${t.t}</div>
+      <div class="grow"><div class="title">${t.t}${multiProfile()?' · '+profileLabel(profileById(pid)):''}</div>
       <div class="sub">zuletzt: <span class="measure-val">${fmtMeasure(last)}</span> · ${new Date(last.ts).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div></div>`;
     html+=sparkline(list.slice(0,20).reverse());
     html+=`<hr class="sep">`;
@@ -273,10 +355,11 @@ function renderMeasure(){
   }
   view.innerHTML=html;
 }
+const fmtNum = n => (typeof n==='number' && !isNaN(n)) ? n.toLocaleString('de-DE',{maximumFractionDigits:3}) : String(n??'');
 function fmtMeasure(m){
   const t=mType(m.type);
-  if(t.two) return `${m.value}/${m.value2} ${t.unit}`;
-  return `${m.value} ${m.unit||t.unit}`;
+  if(t.two) return `${fmtNum(m.value)}/${fmtNum(m.value2)} ${t.unit}`;
+  return `${fmtNum(m.value)} ${m.unit||t.unit}`;
 }
 function sparkline(list){
   if(list.length<2) return '<div class="sub muted">(zu wenig Daten für Verlauf)</div>';
@@ -291,7 +374,7 @@ function sparkline(list){
 /* ---- Verlauf / Adhärenz ---- */
 function renderHistory(){
   const ad7=adherence(7), ad30=adherence(30);
-  let html=`<h2 class="section">Verlauf &amp; Therapietreue</h2>`;
+  let html=profileBar() + `<h2 class="section">Verlauf &amp; Therapietreue</h2>`;
   html+=`<div class="card"><div class="stat">
      <div><div class="k">${ad7.pct??'–'}${ad7.pct!=null?'%':''}</div><div class="l">7 Tage</div></div>
      <div><div class="k">${ad30.pct??'–'}${ad30.pct!=null?'%':''}</div><div class="l">30 Tage</div></div>
@@ -302,7 +385,7 @@ function renderHistory(){
   html+=`<div class="card"><div class="title" style="margin-bottom:8px">Letzte 14 Tage</div>`;
   for(let i=0;i<14;i++){
     const d=new Date(); d.setDate(d.getDate()-i); const key=todayKey(d);
-    const doses=dosesForDay(key);
+    const doses=visibleDoses(key);
     if(!doses.length) continue;
     let taken=0,skip=0;
     for(const dose of doses){ const s=intakeState(key,dose.medId,dose.time)?.status; if(s==='taken')taken++; else if(s==='skipped')skip++; }
@@ -320,6 +403,20 @@ function renderHistory(){
 function renderMore(){
   const s=DB.settings;
   let html=`<h2 class="section">Mehr</h2>`;
+
+  html+=`<div class="card">
+    <div class="title">Personen &amp; Tiere</div>
+    <div class="sub">Für wen sind die Medikamente? Lege z. B. ein Familienmitglied oder dein Haustier an.</div>
+    ${DB.profiles.map(p=>{
+      const n=DB.meds.filter(m=>!m.archived&&m.profileId===p.id).length;
+      return `<div class="dose-item">
+        <div class="pill">${kindIcon(p.kind)}</div>
+        <div class="grow"><div class="title">${esc(p.name)}</div>
+          <div class="sub">${(PROFILE_KINDS.find(k=>k.v===p.kind)||PROFILE_KINDS[0]).t} · ${n} ${n===1?'Medikament':'Medikamente'}</div></div>
+        <button class="btn-round btn-ghost" onclick="act.profileForm('${p.id}')" title="Bearbeiten">✎</button>
+      </div>`;}).join('')}
+    <div class="actions" style="margin-top:10px"><button class="btn-ghost btn-sm" onclick="act.profileForm('')">+ Person oder Tier hinzufügen</button></div>
+  </div>`;
 
   html+=`<div class="card">
     <div class="title">Erinnerungen</div>
@@ -388,12 +485,24 @@ function closeModal(){ modalBg.classList.remove('open'); modal.innerHTML=''; }
 modalBg.addEventListener('click',e=>{ if(e.target===modalBg) closeModal(); });
 
 function medForm(med){
-  const m = med || {id:'',name:'',form:'tablette',strength:'',color:'#1f8a70',stock:'',stockThreshold:'',
-                    notes:'',interact:false, schedule:{type:'daily',times:['08:00'],weekdays:[1,2,3,4,5],everyDays:2,onDays:21,offDays:7}};
+  const defaultPid = DB.settings.profileFilter!=='all' ? DB.settings.profileFilter : DB.profiles[0].id;
+  const m = med || {id:'',profileId:defaultPid,name:'',form:'tablette',strength:'',color:'#1f8a70',stock:'',stockThreshold:'',
+                    notes:'',interact:false,trackWeight:false, schedule:{type:'daily',times:['08:00'],weekdays:[1,2,3,4,5],everyDays:2,onDays:21,offDays:7}};
   const s=m.schedule||{type:'daily',times:['08:00']};
   openModal(`
     <div class="modal-head"><h3>${med?'Medikament bearbeiten':'Neues Medikament'}</h3><button class="btn-ghost btn-sm" onclick="act.closeModal()">Schließen</button></div>
-    <label>Name</label><input id="mName" value="${esc(m.name)}" placeholder="z. B. Ramipril">
+    <label>Für</label>
+    <select id="mProfile" onchange="document.getElementById('mNewProfile').style.display=this.value==='__new'?'block':'none'">
+      ${DB.profiles.map(p=>`<option value="${p.id}" ${m.profileId===p.id?'selected':''}>${kindIcon(p.kind)} ${esc(p.name)}</option>`).join('')}
+      <option value="__new">＋ Neue Person / neues Tier …</option>
+    </select>
+    <div id="mNewProfile" style="display:none">
+      <div class="grid2">
+        <div><label>Name</label><input id="mNewName" placeholder="z. B. Bello"></div>
+        <div><label>Art</label><select id="mNewKind">${PROFILE_KINDS.map(k=>`<option value="${k.v}">${k.ic} ${k.t}</option>`).join('')}</select></div>
+      </div>
+    </div>
+    <label>Medikament</label><input id="mName" value="${esc(m.name)}" placeholder="z. B. Ramipril">
     <div class="grid2">
       <div><label>Form</label><select id="mForm">${FORMS.map(f=>`<option value="${f.v}" ${m.form===f.v?'selected':''}>${f.ic} ${f.t}</option>`).join('')}</select></div>
       <div><label>Stärke / Dosis</label><input id="mStrength" value="${esc(m.strength)}" placeholder="z. B. 5 mg"></div>
@@ -424,6 +533,10 @@ function medForm(med){
       <div><label>Aktueller Bestand</label><input type="number" id="mStock" value="${m.stock??''}" placeholder="z. B. 30" min="0"></div>
       <div><label>Warnen ab</label><input type="number" id="mThresh" value="${m.stockThreshold??''}" placeholder="z. B. 7" min="0"></div>
     </div>
+
+    <hr class="sep"><div class="title" style="font-size:15px">Gewicht</div>
+    <label style="display:flex;align-items:center;gap:10px;color:var(--text)"><input type="checkbox" id="mWeight" ${m.trackWeight?'checked':''}> ⚖️ Gewicht mit erfassen</label>
+    <div class="sub">Solange das Medikament läuft (Start bis Ende), fragt Dosia beim ersten Abhaken am Tag nach dem Gewicht – höchstens einmal täglich.</div>
 
     <hr class="sep">
     <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="mInteract" ${m.interact?'checked':''}> ⚠ Wechselwirkung/Hinweis markieren</label>
@@ -465,6 +578,7 @@ function renderSchedExtra(){
 function measureForm(){
   openModal(`
     <div class="modal-head"><h3>Messwert erfassen</h3><button class="btn-ghost btn-sm" onclick="act.closeModal()">Schließen</button></div>
+    ${multiProfile()?`<label>Für</label><select id="xProfile">${DB.profiles.map(p=>`<option value="${p.id}" ${(DB.settings.profileFilter===p.id)?'selected':''}>${kindIcon(p.kind)} ${esc(p.name)}</option>`).join('')}</select>`:''}
     <label>Art</label>
     <select id="xType" onchange="act.measureTypeChange()">${MEASURE_TYPES.map(t=>`<option value="${t.v}">${t.ic} ${t.t}</option>`).join('')}</select>
     <div id="xFields"></div>
@@ -474,13 +588,52 @@ function measureForm(){
   act.measureTypeChange();
 }
 
+// Gewicht schnell erfassen (aus "Heute" oder automatisch beim Abhaken)
+function weightForm(profileId, medId){
+  const p=profileById(profileId);
+  const last=DB.measures.filter(m=>m.type==='weight'&&m.profileId===p.id).sort((a,b)=>b.ts-a.ts)[0];
+  openModal(`
+    <div class="modal-head"><h3>⚖️ Gewicht${multiProfile()?' · '+profileLabel(p):''}</h3><button class="btn-ghost btn-sm" onclick="act.closeModal()">Schließen</button></div>
+    <div class="sub">${last?`Zuletzt: <b>${fmtNum(last.value)} kg</b> am ${new Date(last.ts).toLocaleDateString('de-DE')}`:'Noch kein Gewicht erfasst.'}</div>
+    <label>Gewicht (kg)</label>
+    <input type="text" id="wVal" inputmode="decimal" autocomplete="off" placeholder="${last?fmtNum(last.value):'z. B. 12,5'}">
+    <div class="actions" style="margin-top:16px">
+      <button class="btn-primary grow" onclick="act.saveWeight('${p.id}','${medId||''}')">Speichern</button>
+      <button class="btn-ghost" onclick="act.skipWeight('${p.id}')">Heute nicht</button>
+    </div>`);
+  setTimeout(()=>{ const i=$('#wVal'); if(i) i.focus(); }, 50);
+}
+
+// Person / Tier anlegen oder bearbeiten
+function profileForm(id){
+  const p = id ? DB.profiles.find(x=>x.id===id) : { id:'', name:'', kind:'person' };
+  openModal(`
+    <div class="modal-head"><h3>${id?'Bearbeiten':'Person oder Tier hinzufügen'}</h3><button class="btn-ghost btn-sm" onclick="act.closeModal()">Schließen</button></div>
+    <label>Name</label><input id="pName" value="${esc(p.name)}" placeholder="z. B. Mama, Bello, Minka">
+    <label>Art</label>
+    <select id="pKind">${PROFILE_KINDS.map(k=>`<option value="${k.v}" ${p.kind===k.v?'selected':''}>${k.ic} ${k.t}</option>`).join('')}</select>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn-primary grow" onclick="act.saveProfile('${p.id}')">Speichern</button>
+      ${id && DB.profiles.length>1 ? `<button class="btn-danger" onclick="act.deleteProfile('${p.id}')">Löschen</button>` : ''}
+    </div>`);
+}
+
 /* ======================================================================
    AKTIONEN
 ====================================================================== */
 const act = {
   closeModal,
   // Heute
-  take(key,medId,time){ const cur=intakeState(key,medId,time); setIntake(key,medId,time, cur?.status==='taken'?null:'taken'); render(); refreshReminders(); },
+  take(key,medId,time){
+    const cur=intakeState(key,medId,time);
+    const nowTaken = cur?.status!=='taken';
+    setIntake(key,medId,time, nowTaken?'taken':null); render(); refreshReminders();
+    // Gewicht mit erfassen: beim ersten Abhaken des Tages fragen (höchstens einmal pro Tag und Profil)
+    const med=DB.meds.find(m=>m.id===medId);
+    if(nowTaken && med && med.trackWeight && key===todayKey() && !weightToday(med.profileId) && !weightSkipped(med.profileId)){
+      weightForm(med.profileId, med.id);
+    }
+  },
   skip(key,medId,time){ const cur=intakeState(key,medId,time); setIntake(key,medId,time, cur?.status==='skipped'?null:'skipped'); render(); refreshReminders(); },
   // Medikament
   newMed(){ medForm(null); },
@@ -491,12 +644,21 @@ const act = {
   toggleWd(d,el){ const w=tmpSched.weekdays=tmpSched.weekdays||[]; const idx=w.indexOf(d); if(idx<0)w.push(d); else w.splice(idx,1); el.classList.toggle('on'); },
   saveMed(id){
     const name=$('#mName').value.trim();
-    if(!name){ alert('Bitte einen Namen eingeben.'); return; }
+    if(!name){ alert('Bitte einen Namen für das Medikament eingeben.'); return; }
+    // Für wen? Ggf. direkt eine neue Person / ein neues Tier anlegen
+    let profileId=$('#mProfile').value;
+    if(profileId==='__new'){
+      const pname=$('#mNewName').value.trim();
+      if(!pname){ alert('Bitte einen Namen für die neue Person bzw. das Tier eingeben.'); return; }
+      profileId=uid();
+      DB.profiles.push({ id:profileId, name:pname, kind:$('#mNewKind').value });
+    }
     tmpTimes=[...new Set(tmpTimes)].sort();
     const sched={ type:$('#mType').value, times:tmpTimes,
       everyDays:tmpSched.everyDays, weekdays:tmpSched.weekdays, onDays:tmpSched.onDays, offDays:tmpSched.offDays, anchor:tmpSched.anchor,
       start:$('#mStart').value||'', end:$('#mEnd').value||'' };
     const data={
+      profileId, trackWeight:$('#mWeight').checked,
       name, form:$('#mForm').value, strength:$('#mStrength').value.trim(), color:$('#mColor').value,
       stock: $('#mStock').value===''?null:Math.max(0,+$('#mStock').value),
       stockThreshold: $('#mThresh').value===''?0:Math.max(0,+$('#mThresh').value),
@@ -511,18 +673,51 @@ const act = {
   newMeasure(){ measureForm(); },
   measureTypeChange(){
     const t=mType($('#xType').value); const el=$('#xFields');
-    if(t.two){ el.innerHTML=`<div class="grid2"><div><label>${t.ph[0]} (${t.unit})</label><input type="number" id="xVal" inputmode="decimal"></div>
-      <div><label>${t.ph[1]}</label><input type="number" id="xVal2" inputmode="decimal"></div></div>`; }
-    else{ el.innerHTML=`<label>Wert ${t.unit?'('+t.unit+')':''}</label><input type="number" id="xVal" inputmode="decimal">${t.v==='custom'?'<label>Einheit</label><input id="xUnit" placeholder="z. B. mg/l">':''}`; }
+    if(t.two){ el.innerHTML=`<div class="grid2"><div><label>${t.ph[0]} (${t.unit})</label><input type="text" id="xVal" inputmode="decimal" autocomplete="off"></div>
+      <div><label>${t.ph[1]}</label><input type="text" id="xVal2" inputmode="decimal" autocomplete="off"></div></div>`; }
+    else{ el.innerHTML=`<label>Wert ${t.unit?'('+t.unit+')':''}</label><input type="text" id="xVal" inputmode="decimal" autocomplete="off">${t.v==='custom'?'<label>Einheit</label><input id="xUnit" placeholder="z. B. mg/l">':''}`; }
   },
   saveMeasure(){
     const type=$('#xType').value, t=mType(type);
-    const v=$('#xVal').value; if(v===''){ alert('Bitte einen Wert eingeben.'); return; }
-    DB.measures.push({ id:uid(), type, value:+v, value2: t.two? (+($('#xVal2').value||0)) : undefined,
+    const v=parseNum($('#xVal').value); if(isNaN(v)){ alert('Bitte einen gültigen Wert eingeben.'); return; }
+    const v2=t.two ? parseNum($('#xVal2').value) : undefined;
+    if(t.two && isNaN(v2)){ alert('Bitte beide Werte eingeben.'); return; }
+    const pid = $('#xProfile') ? $('#xProfile').value : (DB.settings.profileFilter!=='all' ? DB.settings.profileFilter : DB.profiles[0].id);
+    DB.measures.push({ id:uid(), profileId:pid, type, value:v, value2: v2,
       unit: type==='custom'? ($('#xUnit')?.value||'') : t.unit, ts:Date.now(), note:$('#xNote').value.trim() });
     saveDB(); closeModal(); render();
   },
   delMeasure(id){ if(confirm('Messwert löschen?')){ DB.measures=DB.measures.filter(m=>m.id!==id); saveDB(); render(); } },
+  // Gewicht
+  weightForm(pid, medId){ weightForm(pid, medId); },
+  saveWeight(pid, medId){
+    const v=parseNum($('#wVal').value);
+    if(!(v>0)){ alert('Bitte ein gültiges Gewicht eingeben, z. B. 12,5'); return; }
+    const med=DB.meds.find(m=>m.id===medId);
+    DB.measures.push({ id:uid(), profileId:pid, medId:medId||undefined, type:'weight', value:Math.round(v*1000)/1000, unit:'kg', ts:Date.now(), note: med?('zu '+med.name):'' });
+    saveDB(); closeModal(); render();
+  },
+  skipWeight(pid){ markWeightSkipped(pid); closeModal(); render(); },
+  // Personen & Tiere
+  setProfileFilter(pid){ DB.settings.profileFilter=pid; saveDB({ skipBackup:true }); render(); },
+  profileForm(id){ profileForm(id); },
+  saveProfile(id){
+    const name=$('#pName').value.trim(), kind=$('#pKind').value;
+    if(!name){ alert('Bitte einen Namen eingeben.'); return; }
+    if(id){ Object.assign(DB.profiles.find(p=>p.id===id), { name, kind }); }
+    else{ DB.profiles.push({ id:uid(), name, kind }); }
+    saveDB(); closeModal(); render(); refreshReminders();
+  },
+  deleteProfile(id){
+    const p=DB.profiles.find(x=>x.id===id); if(!p || DB.profiles.length<2) return;
+    const n=DB.meds.filter(m=>!m.archived&&m.profileId===id).length, w=DB.measures.filter(m=>m.profileId===id).length;
+    if(!confirm(`„${p.name}" löschen?\n\nDabei werden auch ${n} Medikament(e) und ${w} Messwert(e) von ${p.name} gelöscht.`)) return;
+    DB.meds.forEach(m=>{ if(m.profileId===id) m.archived=true; });
+    DB.measures=DB.measures.filter(m=>m.profileId!==id);
+    DB.profiles=DB.profiles.filter(x=>x.id!==id);
+    if(DB.settings.profileFilter===id) DB.settings.profileFilter='all';
+    saveDB(); closeModal(); render(); refreshReminders();
+  },
   // Einstellungen
   async toggleNotify(on){
     if(on){
@@ -583,6 +778,15 @@ const LN = () => (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) || null;
 const NOTIF_WINDOW = 64;   // so viele kommende Dosen im Voraus einplanen
 let channelReady = false;
 
+// Texte der Erinnerung: bei mehreren Profilen steht dabei, für wen
+function reminderTitle(med){
+  const p = profileById(med.profileId);
+  return multiProfile() ? `Dosia · ${p.name}: ${med.name}` : `Dosia · ${med.name}`;
+}
+function reminderBody(med, time){
+  return [time, med.strength || 'Zeit für die Einnahme', med.trackWeight ? 'Gewicht erfassen' : ''].filter(Boolean).join(' · ');
+}
+
 // Nächste fällige Dosen über alle Medikamente (nur Zukunft, offene)
 function nextDoseOccurrences(limit){
   const out=[]; const now=new Date();
@@ -635,8 +839,8 @@ async function nativeReschedule(){
     const notifications = occ.map((o,i)=>{
       const n = {
         id: i+1,
-        title: 'Dosia · '+o.med.name,
-        body: (o.time+' · '+(o.med.strength||'Zeit für die Einnahme')).trim(),
+        title: reminderTitle(o.med),
+        body: reminderBody(o.med, o.time),
         schedule: { at: o.when, allowWhileIdle: true }
       };
       if(channelReady) n.channelId='dosia-reminders';
@@ -664,7 +868,7 @@ function webCheck(){
     const fk=dose.medId+'|'+dose.time;
     if(dose.time<=nowHM && !fired.includes(fk)){
       if(!intakeState(key,dose.medId,dose.time)){
-        try{ new Notification('Dosia · Zeit für '+dose.med.name, { body:(dose.time+' · '+(dose.med.strength||'')).trim(), tag:fk }); }catch{}
+        try{ new Notification(reminderTitle(dose.med), { body:reminderBody(dose.med, dose.time), tag:fk }); }catch{}
       }
       addFired(fk);
     }
