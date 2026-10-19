@@ -28,3 +28,6 @@ Thumbs.db
 
 # Heruntergeladene Builds
 release/
+
+# Persoenliche Angaben fuer Impressum/Datenschutz
+website/config.php
