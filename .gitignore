@@ -25,3 +25,6 @@ KEYSTORE-BASE64.txt
 .DS_Store
 Thumbs.db
 *.log
+
+# Heruntergeladene Builds
+release/

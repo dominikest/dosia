@@ -82,6 +82,36 @@ Nach dem Lauf unter **Actions → der Lauf → Artifacts**:
 
 ---
 
+## Google-Drive-Sicherung – Einrichtung bei Google (einmalig)
+
+Dosia sichert die Daten in den versteckten App-Ordner im Google Drive des Nutzers
+(Scope `drive.appdata` – kein Zugriff auf andere Dateien). Damit die Anmeldung funktioniert,
+muss die App in der Google Cloud Console registriert sein:
+
+1. https://console.cloud.google.com → neues Projekt **„Dosia"**
+2. **APIs & Dienste → Bibliothek → „Google Drive API" → Aktivieren**
+3. **Google Auth Platform** (früher „OAuth-Zustimmungsbildschirm") → Erste Schritte:
+   App-Name „Dosia", Support-E-Mail, Zielgruppe **Extern**
+4. **Datenzugriff → Bereiche hinzufügen** → `https://www.googleapis.com/auth/drive.appdata`
+5. **Zielgruppe → Testnutzer** → eigene Gmail-Adresse eintragen
+   (solange die App im Status „Testen" ist, können sich nur Testnutzer anmelden)
+6. **Clients → Client erstellen → Typ „Android"**
+   - Paketname: `de.dominikest.dosia`
+   - SHA-1 (Upload-Key, für die APKs aus GitHub Actions):
+     `14:D7:58:F0:28:90:AA:9A:50:97:13:EC:46:FD:B4:86:DD:66:FD:82`
+7. **Nach dem ersten Play-Upload:** Play Console → *App-Integrität* → SHA-1 des
+   **App-Signaturschlüssels** kopieren und einen **zweiten** Android-Client mit diesem SHA-1 anlegen.
+   Sonst funktioniert die Anmeldung in der Play-Version nicht.
+8. Vor der Veröffentlichung: in der Google Auth Platform die App von „Testen" auf **„In Produktion"** stellen.
+
+Fehler in der App „…noch nicht freigeschaltet" (Code API_10) = Client fehlt oder SHA-1/Paketname passt nicht
+(nach dem Anlegen manchmal ein paar Minuten warten).
+
+**Datenschutz/Play:** Mit der Drive-Sicherung verlassen Daten (auf Wunsch des Nutzers) das Gerät –
+Datenschutzerklärung und Data-Safety-Angaben entsprechend formulieren.
+
+---
+
 ## Play-Store-Einreichung – Checkliste
 
 **Technisch – erledigt:**
