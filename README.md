@@ -13,7 +13,7 @@ Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbun
 - **Personen & Tiere:** Medikamente getrennt für dich, Angehörige, Hund, Katze, Kaninchen, Vogel, Pferd …
 - **Einnahmepläne:** täglich, bestimmte Wochentage, alle X Tage / Wochen / Monate, Zyklus (an/aus), mehrere Uhrzeiten, Start/Ende
 - **Erinnerungen:** native Android-Benachrichtigungen, auch bei geschlossener App und nach Neustart;
-  Knöpfe **„✓ Genommen"** und **„⏰ In 10 Min."** direkt in der Benachrichtigung; **Nachhaken**, wenn nicht abgehakt
+  Knöpfe **„✓ Genommen"** und **„⏰ In 10 Min."** direkt in der Benachrichtigung; wiederholtes **Nachhaken**, bis abgehakt (Abstand und Anzahl einstellbar)
 - **Heute-Ansicht:** abhaken / überspringen, Tagesfortschritt, Hinweise auf fälliges Gewicht und knappen Vorrat
 - **Vorrat:** Bestand wird beim Abhaken abgezogen, Reichweite in Tagen, **Nachkauf-Erinnerung**
 - **Gewicht zum Medikament:** pro Medikament zuschaltbar – Abfrage beim ersten Abhaken des Tages

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0 – 20.10.2026
+- **Wiederholtes Nachhaken:** Dosia erinnert erneut, bis die Dosis abgehakt oder übersprungen ist – einstellbar alle 5/10/15/30/60/120 Min.
+  und 1×, 2×, 3×, 5×, 10× oder „bis abgehakt" (Standard); endet spätestens bei der nächsten Einnahme desselben Medikaments
+- Deutlichere Nachhak-Erinnerungen („⏰ Noch nicht genommen … · fällig seit 06:00 · 3. Erinnerung"), je Dosis gebündelt
+- Beim Abhaken verschwinden alle Erinnerungen dieser Dosis aus der Benachrichtigungsleiste
+- „In 10 Min." pausiert das Nachhaken bis dahin
+- Nach Updates wird bei jedem App-Start gesucht
+
 ## 1.4.1 – 20.10.2026
 - Veraltete Versionen werden nach einer Übergangsfrist nicht mehr unterstützt: Erst erscheint ein Hinweis mit Datum,
   danach bietet Dosia nur noch das Update und einen Backup-Export an (bereits geplante Erinnerungen laufen weiter)

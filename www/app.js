@@ -11,7 +11,8 @@ const defaultDB = () => ({
   meds: [],          // {id,profileId,name,form,strength,color,stock,stockThreshold,schedule,notes,interact,trackWeight,createdAt,archived}
   intake: {},        // { "YYYY-MM-DD": { "medId|HH:MM": {status:'taken'|'skipped', ts} } }
   measures: [],      // {id,profileId,medId?,type,value,value2,unit,ts,note}
-  settings: { notify:false, theme:'auto', medfriend:'', profileFilter:'all', followUp:true, followUpMin:30 }
+  // followUpMax: wie oft nachgehakt wird; 0 = bis abgehakt (spätestens bis zur nächsten Einnahme, max. 24 h)
+  settings: { notify:false, theme:'auto', medfriend:'', profileFilter:'all', followUp:true, followUpMin:15, followUpMax:0 }
 });
 
 // Ältere Datenstände (auch aus Backups) auf das aktuelle Modell bringen
@@ -507,10 +508,14 @@ function renderMore(){
       : 'Benachrichtigungen, solange Dosia geöffnet ist (Browser-Version).'}</div>
     <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
       <input type="checkbox" id="setNotify" ${s.notify?'checked':''}> Erinnerungen aktivieren</label>
-    ${isNative ? `<label style="display:flex;align-items:center;gap:10px;margin-top:8px">
-      <input type="checkbox" id="setFollow" ${s.followUp?'checked':''}> Nachhaken, wenn nicht abgehakt – nach
-      <select id="setFollowMin" style="width:auto;padding:6px 8px">${[15,30,60,120].map(n=>`<option value="${n}" ${s.followUpMin===n?'selected':''}>${n<60?n+' Min.':(n/60)+' Std.'}</option>`).join('')}</select></label>
-    <div class="sub">In der Benachrichtigung kannst du direkt auf „✓ Genommen" oder „⏰ In 10 Min." tippen.</div>` : ''}
+    ${isNative ? `<label style="display:flex;align-items:center;gap:10px;margin-top:10px">
+      <input type="checkbox" id="setFollow" ${s.followUp?'checked':''}> Nachhaken, solange nicht abgehakt</label>
+    <div class="grid2" style="${s.followUp?'':'opacity:.5'}">
+      <div><label>Alle</label><select id="setFollowMin">${[5,10,15,30,60,120].map(n=>`<option value="${n}" ${s.followUpMin===n?'selected':''}>${n<60?n+' Minuten':n===60?'1 Stunde':'2 Stunden'}</option>`).join('')}</select></div>
+      <div><label>Wie oft</label><select id="setFollowMax">${[[0,'bis abgehakt'],[1,'1×'],[2,'2×'],[3,'3×'],[5,'5×'],[10,'10×']].map(([v,t])=>`<option value="${v}" ${(s.followUpMax||0)===v?'selected':''}>${t}</option>`).join('')}</select></div>
+    </div>
+    <div class="sub">Nachgehakt wird höchstens bis zur nächsten Einnahme desselben Medikaments (spätestens nach 24 Std.).
+      In der Benachrichtigung kannst du direkt auf „✓ Genommen" oder „⏰ In 10 Min." tippen.</div>` : ''}
     ${isNative
       ? `<div class="hint">Falls keine Erinnerungen ankommen: In den Android-Einstellungen unter <b>Apps → Dosia → Benachrichtigungen</b> erlauben und bei <b>Akku</b> „nicht optimiert/uneingeschränkt" wählen, damit Android die App nicht einschläfert.</div>`
       : `<div class="notice">⚠ In der Browser-Version können Erinnerungen bei geschlossener Seite nicht garantiert werden. Für zuverlässige Erinnerungen die installierte App nutzen.</div>`}
@@ -560,8 +565,9 @@ function renderMore(){
 
   $('#setNotify').onchange=e=>{ act.toggleNotify(e.target.checked); };
   if($('#setFollow')){
-    $('#setFollow').onchange=e=>{ DB.settings.followUp=e.target.checked; saveDB(); refreshReminders(); };
+    $('#setFollow').onchange=e=>{ DB.settings.followUp=e.target.checked; saveDB(); refreshReminders(); render(); };
     $('#setFollowMin').onchange=e=>{ DB.settings.followUpMin=+e.target.value; saveDB(); refreshReminders(); };
+    $('#setFollowMax').onchange=e=>{ DB.settings.followUpMax=+e.target.value; saveDB(); refreshReminders(); };
   }
   $('#setMedfriend').onchange=e=>{ DB.settings.medfriend=e.target.value.trim(); saveDB(); };
   $('#themeChips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ act.setTheme(c.dataset.theme); });
@@ -896,9 +902,28 @@ const isNative = !!(Cap && typeof Cap.isNativePlatform==='function' && Cap.isNat
 const LN = () => (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) || null;
 const NOTIF_WINDOW = 48;   // so viele kommende Dosen im Voraus einplanen (plus je Medikament die nächste)
 const SNOOZE_MIN = 10;
-// Benachrichtigungs-IDs je Art: Dosis 1–999, Nachhaken 1000–1999, Schlummern 2000–2999, Nachkauf 3000–3999
-const NID = { dose:1, followup:1000, snooze:2000, restock:3000 };
+// Android erlaubt pro App höchstens 500 geplante Alarme – mit Reserve bleiben wir darunter.
+const MAX_ALARMS = 450;
+const FOLLOWUP_HORIZON_MS = 24*3600*1000;   // Nachhaken endet spätestens nach 24 h (bzw. bei der nächsten Einnahme)
 let channelReady = false;
+
+// Feste Benachrichtigungs-Nummer je Erinnerung (Art + Dosis + Zähler): eine Erinnerung ersetzt beim Neuplanen
+// nur sich selbst, und alle Erinnerungen einer Dosis lassen sich gezielt aus der Leiste entfernen.
+const NID_BASE = { dose:100000000, followup:200000000, snooze:300000000, restock:400000000 };
+function stableId(kind, ident, used){
+  let h = 0x811c9dc5;                                   // FNV-1a
+  for(let i=0;i<ident.length;i++){ h ^= ident.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  let id = NID_BASE[kind] + (h % 99999999);
+  while(used.has(id)) id++;                             // seltene Kollision innerhalb eines Plans auflösen
+  used.add(id);
+  return id;
+}
+const doseIdent = (key, medId, time) => key+'|'+medId+'|'+time;
+
+// Welche angezeigte Benachrichtigung gehört zu welcher Dosis? (für das Aufräumen nach dem Abhaken)
+const NIDMAP_KEY = 'dosia.nidmap.v1';
+function getNidMap(){ try{ return JSON.parse(localStorage.getItem(NIDMAP_KEY)||'{}'); }catch{ return {}; } }
+function setNidMap(m){ try{ localStorage.setItem(NIDMAP_KEY, JSON.stringify(m)); }catch{} }
 
 // "In 10 Min. erinnern": gemerkte Schlummer-Erinnerungen (überleben das Neuplanen)
 const SNOOZE_KEY = 'dosia.snooze.v1';
@@ -964,7 +989,8 @@ function reminderPlan(now=new Date()){
   if(!s.notify) return plan;
 
   // 1) Dosen: rollierendes Fenster + je Medikament mindestens die nächste Dosis
-  const recent = dosesBetween(new Date(now.getTime()-86400000), 62).filter(doseOpen);   // ab gestern (Nachhaken über Mitternacht)
+  const all = dosesBetween(new Date(now.getTime()-86400000), 62);            // ab gestern (Nachhaken über Mitternacht)
+  const recent = all.filter(doseOpen);
   const doses = recent.filter(o=>o.when>now).sort((a,b)=>a.when-b.when).slice(0, NOTIF_WINDOW);
   for(const med of DB.meds.filter(m=>!m.archived)){
     if(doses.some(o=>o.med.id===med.id)) continue;
@@ -972,21 +998,47 @@ function reminderPlan(now=new Date()){
   }
   doses.forEach(o=>plan.push({ kind:'dose', at:o.when, med:o.med, key:o.key, time:o.time }));
 
-  // 2) Nachhaken: für geplante und bereits fällige, noch offene Dosen
-  if(s.followUp){
-    const ms=(s.followUpMin||30)*60000, seen=new Set();
-    for(const o of recent.filter(o=>o.when<=now).concat(doses)){
-      const id=o.key+'|'+o.med.id+'|'+o.time; if(seen.has(id)) continue; seen.add(id);
-      const at=new Date(o.when.getTime()+ms);
-      if(at>now) plan.push({ kind:'followup', at, med:o.med, key:o.key, time:o.time });
+  // 2) Schlummern ("In 10 Min.") – pausiert das Nachhaken dieser Dosis bis dahin
+  const snoozeUntil = {};
+  for(const sn of getSnoozes()){
+    const med=DB.meds.find(m=>m.id===sn.medId);
+    if(med && !med.archived && sn.at>now.getTime() && !intakeState(sn.key, sn.medId, sn.time)){
+      plan.push({ kind:'snooze', at:new Date(sn.at), med, key:sn.key, time:sn.time });
+      snoozeUntil[doseIdent(sn.key, sn.medId, sn.time)] = sn.at;
     }
   }
 
-  // 3) Schlummern ("In 10 Min.")
-  for(const sn of getSnoozes()){
-    const med=DB.meds.find(m=>m.id===sn.medId);
-    if(med && !med.archived && sn.at>now.getTime() && !intakeState(sn.key, sn.medId, sn.time))
-      plan.push({ kind:'snooze', at:new Date(sn.at), med, key:sn.key, time:sn.time });
+  // 3) Nachhaken: wiederholt im eingestellten Abstand, bis abgehakt/übersprungen,
+  //    höchstens "followUpMax"-mal (0 = unbegrenzt) und nur bis zur nächsten Einnahme desselben Medikaments (max. 24 h).
+  if(s.followUp){
+    const step = Math.max(5, s.followUpMin||15) * 60000;
+    const maxN = s.followUpMax > 0 ? s.followUpMax : Infinity;
+    const cands = [], seen = new Set();
+    for(const o of recent.filter(o=>o.when<=now).concat(doses).sort((a,b)=>a.when-b.when)){
+      const ident = doseIdent(o.key, o.med.id, o.time); if(seen.has(ident)) continue; seen.add(ident);
+      const next = all.filter(x=>x.med.id===o.med.id && x.when>o.when).sort((a,b)=>a.when-b.when)[0];
+      const end = Math.min(o.when.getTime() + FOLLOWUP_HORIZON_MS, next ? next.when.getTime() : Infinity);
+      const pause = snoozeUntil[ident] || 0;
+      for(let n=1; n<=maxN; n++){
+        const t = o.when.getTime() + n*step;
+        if(t >= end) break;
+        if(t <= now.getTime() || t <= pause) continue;
+        cands.push({ kind:'followup', at:new Date(t), med:o.med, key:o.key, time:o.time, n });
+      }
+    }
+    // Alarm-Budget verteilen: zuerst bekommt JEDE Dosis ihre ersten zwei Nachhak-Erinnerungen,
+    // danach wird der Rest nach Dringlichkeit (frühester Zeitpunkt zuerst) aufgefüllt.
+    let room = Math.max(0, MAX_ALARMS - plan.length - DB.meds.length);     // Reserve für Nachkauf
+    const firstTwo = new Map();                                            // je Dosis die zwei frühesten künftigen
+    for(const c of [...cands].sort((a,b)=>a.at-b.at)){
+      const id = doseIdent(c.key, c.med.id, c.time), arr = firstTwo.get(id) || [];
+      if(arr.length < 2){ arr.push(c); firstTwo.set(id, arr); }
+    }
+    const guaranteed = [...firstTwo.values()].flat().sort((a,b)=>a.at-b.at).slice(0, room);
+    const picked = new Set(guaranteed);
+    room -= guaranteed.length;
+    const rest = cands.filter(c=>!picked.has(c)).sort((a,b)=>a.at-b.at).slice(0, room);
+    guaranteed.concat(rest).forEach(c=>plan.push(c));
   }
 
   // 4) Nachkauf: einmal pro Knapp-Phase (zurückgesetzt, wenn der Bestand erhöht wird)
@@ -1013,17 +1065,27 @@ function reminderPlan(now=new Date()){
 
 // Plan -> Benachrichtigungen für das Plugin
 function planToNotifications(plan){
-  const counters={ dose:0, followup:0, snooze:0, restock:0 };
+  const used = new Set();
   return plan.map(p=>{
-    const n={ id: NID[p.kind] + (counters[p.kind]++), schedule:{ at:p.at, allowWhileIdle:true },
+    const ident = p.kind==='restock' ? 'restock|'+p.med.id : doseIdent(p.key, p.med.id, p.time);
+    const n={ id: stableId(p.kind, ident + (p.kind==='followup' ? '#'+p.n : ''), used),
+              schedule:{ at:p.at, allowWhileIdle:true },
               extra:{ kind:p.kind, medId:p.med.id, key:p.key||'', time:p.time||'' } };
     if(p.kind==='restock'){
       n.title = `🛒 Nachkaufen: ${p.med.name}`;
       n.body  = `Noch etwa ${p.left} übrig${p.extraText?' · '+p.extraText:''}${multiProfile()?' · für '+profileById(p.med.profileId).name:''}`;
     } else {
-      n.title = (p.kind==='followup' ? '⏰ Noch offen · ' : '') + reminderTitle(p.med);
-      n.body  = p.kind==='followup' ? `Noch nicht abgehakt · ${reminderBody(p.med, p.time)}` : reminderBody(p.med, p.time);
+      if(p.kind==='followup'){
+        const who = multiProfile() ? profileById(p.med.profileId).name+': ' : '';
+        const since = p.key===todayKey(p.at) ? p.time : 'gestern '+p.time;
+        n.title = `⏰ Noch nicht genommen: ${who}${p.med.name}`;
+        n.body  = [`fällig seit ${since}`, `${p.n+1}. Erinnerung`, p.med.strength||''].filter(Boolean).join(' · ');
+      } else {
+        n.title = (p.kind==='snooze' ? '⏰ ' : '') + reminderTitle(p.med);
+        n.body  = reminderBody(p.med, p.time);
+      }
       n.actionTypeId = 'DOSE';
+      n.group = 'dosia-' + ident;              // Erinnerungen einer Dosis bündeln
     }
     if(channelReady) n.channelId='dosia-reminders';
     return n;
@@ -1043,6 +1105,20 @@ async function ensureChannel(){
 async function nativeReschedule(){
   const ln=LN(); if(!ln) return;
   try{
+    // 1) Angezeigte Erinnerungen zu inzwischen erledigten Dosen aus der Leiste entfernen –
+    //    alle Erinnerungen dieser Dosis (Dosis, Nachhaken, Schlummern), über die gemerkte Zuordnung
+    const nidmap = getNidMap();
+    try{
+      const del = await ln.getDeliveredNotifications();
+      const done = (del.notifications||[]).filter(n=>{
+        const ident = nidmap[n.id] || (n.extra && n.extra.key ? doseIdent(n.extra.key, n.extra.medId, n.extra.time) : '');
+        if(!ident) return false;
+        const [k, medId, time] = ident.split('|');
+        return !!intakeState(k, medId, time);
+      });
+      if(done.length) await ln.removeDeliveredNotifications({ notifications: done.map(n=>({ id:n.id })) });
+    }catch{}
+
     const pend = await ln.getPending();
     if(pend && pend.notifications && pend.notifications.length){
       await ln.cancel({ notifications: pend.notifications.map(n=>({id:n.id})) });
@@ -1061,12 +1137,12 @@ async function nativeReschedule(){
     const notifications = planToNotifications(reminderPlan());
     if(notifications.length) await ln.schedule({ notifications });
 
-    // Bereits angezeigte Erinnerungen zu inzwischen erledigten Dosen aus der Leiste entfernen
-    try{
-      const del = await ln.getDeliveredNotifications();
-      const done = (del.notifications||[]).filter(n=>{ const x=n.extra||{}; return x.key && x.medId && intakeState(x.key, x.medId, x.time); });
-      if(done.length) await ln.removeDeliveredNotifications({ notifications: done });
-    }catch{}
+    // 2) Zuordnung Nummer -> Dosis fortschreiben (für das Aufräumen später); Einträge älter als 3 Tage verwerfen
+    const keep = todayKey(new Date(Date.now()-3*86400000));
+    const map = {};
+    for(const [id, ident] of Object.entries(nidmap)) if(ident.split('|')[0] >= keep) map[id] = ident;
+    for(const n of notifications) if(n.extra && n.extra.key) map[n.id] = doseIdent(n.extra.key, n.extra.medId, n.extra.time);
+    setNidMap(map);
   }catch(e){ console.warn('nativeReschedule', e); }
 }
 

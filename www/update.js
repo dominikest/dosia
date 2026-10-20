@@ -7,7 +7,8 @@
 
 const Updater = (() => {
   const STATE_KEY = 'dosia.update.v1';
-  const CHECK_EVERY_MS = 6 * 3600 * 1000;       // automatisch höchstens alle 6 Stunden
+  const CHECK_ON_START_MS = 5 * 60 * 1000;      // beim App-Start prüfen (nicht öfter als alle 5 Min.)
+  const CHECK_ON_RESUME_MS = 3600 * 1000;       // beim Zurückkehren in die App höchstens stündlich
   // support = Antwort des Servers zur Versionssperre: { status:'ok'|'warning'|'blocked', blockedFrom, message, forVersion }
   const defaults = () => ({ auto:true, lastCheck:0, latest:null, dismissed:'', support:null });
   let state = load();
@@ -34,22 +35,22 @@ const Updater = (() => {
   const warningNow = () => { const s=support(); return enabled() && !!s && s.status==='warning' && !blockedNow(); };
 
   // Prüfung läuft immer (auch wenn der Update-Hinweis abgeschaltet ist) – sonst ließe sich die Sperre umgehen.
-  // Bei Hinweis/Sperre bei jedem Start, sonst höchstens alle 6 Stunden.
-  const due = () => { const age = Date.now() - state.lastCheck;
-    return enabled() && (age > CHECK_EVERY_MS || (!!support() && age > 10*60000)); };
+  // Bei jedem App-Start; beim Zurückkehren stündlich, bei Hinweis/Sperre alle 10 Min.
+  const due = (minAge) => { const age = Date.now() - state.lastCheck;
+    return enabled() && (age > minAge || (!!support() && age > 10*60000)); };
   async function init(){
     if(!plugin()) return;
     try{ info = await plugin().getInfo(); }catch{ info = null; }
     if(!enabled()) return;
     if(blockedNow()) rerender();                 // gemerkte Sperre sofort anzeigen (auch offline)
-    if(due()){
+    if(due(CHECK_ON_START_MS)){
       try{ await check(); }catch{ /* offline – später erneut */ }
       rerender();
     }
   }
   // Beim Zurückkehren in die App gelegentlich prüfen
   document.addEventListener('visibilitychange', ()=>{
-    if(document.visibilityState==='visible' && due()) check().then(rerender).catch(()=>{});
+    if(document.visibilityState==='visible' && due(CHECK_ON_RESUME_MS)) check().then(rerender).catch(()=>{});
   });
 
   async function check(){
