@@ -21,42 +21,21 @@ Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbun
 - **Verlauf & Therapietreue** (7/30 Tage, letzte 14 Tage)
 - **Notfall-Kontakt:** bei Dosen > 2 Std. offen mit Anruf-/SMS-Knopf
 - **Sicherung:** automatisch in Google Drive (versteckter App-Ordner) und Backup-Datei über das Teilen-Menü
-- **Selbst-Update** (nur Homepage-Variante): sucht auf der Homepage nach neuen Versionen und installiert sie auf Knopfdruck
-
-## Zwei Varianten (Gradle-Flavors)
-| Variante | Datei | Selbst-Update | Wofür |
-|---|---|---|---|
-| `direct` | `Dosia-x.y.z.apk` | ja (`REQUEST_INSTALL_PACKAGES`, `AppUpdatePlugin`) | Homepage-Download |
-| `play` | `Dosia-x.y.z.aab` | nein – Updates nur über Google Play (Play-Richtlinie) | Google Play |
-
-Die App fragt `dosia.updateUrl` aus `package.json` ab (`website/version.php?v=<installierte Version>`): Version, HTTPS-URL,
-SHA-256, Neuigkeiten und den Support-Status dieser Version.
-Vor der Installation prüft sie Prüfsumme, Paketname und Versionsnummer; Android verlangt zusätzlich dieselbe Signatur.
-
-### Alte Versionen sperren (`website/update-settings.php`)
-- `keep_previous` – wie viele ältere Versionen neben der neuesten noch funktionieren (Standard 2)
-- `grace_days` – Tage mit Hinweis, bevor eine herausgefallene Version gesperrt wird (Standard 3, 0 = sofort)
-- `min_version` / `blocked` – zusätzlich alles unter einer Version bzw. einzelne Versionen sofort sperren
-- `message` – eigener Text auf Hinweis/Sperrbildschirm
-
-Versionen und Erscheinungsdaten kommen aus dem CHANGELOG; berücksichtigt werden nur Versionen, deren APK in
-`download/` liegt (oder ältere). Gesperrt wird die Bedienung (nur Update + Backup-Export), geplante Erinnerungen
-laufen aus Sicherheitsgründen weiter. Gilt nur für die Homepage-Variante. Ist die Datei fehlerhaft, wird niemand gesperrt.
+- **Selbst-Update** (nur Homepage-Variante): sucht nach neuen Versionen, installiert auf Knopfdruck, alte Versionen können gesperrt werden
 
 ## Projektstruktur
 ```
 Dosia/
-  www/                    Die App (HTML/CSS/JS) – app.js, gdrive.js, index.html; version.js wird erzeugt
-  android/                Capacitor-Android-Projekt (u. a. GoogleDrivePlugin.java, Signatur-Konfiguration)
+  www/                    Die App (HTML/CSS/JS): app.js, gdrive.js, update.js, index.html; version.js wird erzeugt
+  android/                Capacitor-Android-Projekt
+    app/src/main/java/…   MainActivity, GoogleDrivePlugin (Drive-Anmeldung), AppUpdatePlugin (Selbst-Update)
+    app/src/direct/       Manifest-Ergänzung nur für die Homepage-Variante (Berechtigung „Apps installieren")
   assets/                 Icon-Quellen (1024 px) für die Icon-Generierung
-  scripts/                write-version.mjs (Version + Datenschutz-URL aus package.json -> www/version.js)
-  website/                Homepage (PHP): Präsentation, Download der neuesten APK, Impressum, Datenschutz
+  scripts/                write-version.mjs: Version und URLs aus package.json -> www/version.js
   .github/workflows/      Release-Build in GitHub Actions (signiertes AAB + APK)
-  package.json            Version, Datenschutz-URL (dosia.privacyUrl), npm-Scripts
-
-Nicht im Git (lokal sichern!): dosia-upload.keystore, keystore.properties, KEYSTORE-*.txt,
-website/config.php, release/, *.apk/*.aab
+  package.json            Version, dosia.privacyUrl, dosia.updateUrl, npm-Scripts
 ```
+Nicht im Repo (lokal, siehe `.gitignore`): Signaturschlüssel und Zugangsdaten, die Homepage, Build-Ergebnisse.
 
 ## Entwicklung
 In `www/` arbeiten, dann ins Android-Projekt übernehmen:
@@ -64,54 +43,55 @@ In `www/` arbeiten, dann ins Android-Projekt übernehmen:
 npm install
 npm run sync
 ```
-`npm run sync` schreibt `www/version.js` und führt `cap sync android` aus.
-Icons neu erzeugen (Quellen in `assets/`): `npm run icons`
+`npm run sync` schreibt `www/version.js` und führt `cap sync android` aus. Icons neu erzeugen (Quellen in `assets/`): `npm run icons`
 
-> Hinweis: Auf dem Entwicklungsrechner blockiert eine Security-Software AF_UNIX-Sockets und bricht HTTPS auf;
-> der Android-Build (AGP 8) läuft dort nicht. Gebaut wird deshalb in GitHub Actions.
+## Zwei Varianten (Gradle-Flavors)
+| Variante | Datei | Selbst-Update | Wofür |
+|---|---|---|---|
+| `direct` | `Dosia-x.y.z.apk` | ja (`REQUEST_INSTALL_PACKAGES`, `AppUpdatePlugin`) | Download von der Homepage |
+| `play` | `Dosia-x.y.z.aab` | nein – Updates nur über Google Play (Play-Richtlinie) | Google Play |
 
-## Neue Version veröffentlichen
-1. `version` in `package.json` erhöhen (z. B. `1.3.0` → `1.4.0`). Daraus folgen automatisch
-   `versionName`, `versionCode` (1.4.0 → 10400), die Anzeige in der App und die Dateinamen.
-2. Eintrag im [CHANGELOG](CHANGELOG.md) ergänzen, committen, pushen.
-3. GitHub → **Actions → „Android Release (AAB + APK)" → Run workflow**
-   (nicht „Re-run" bei einem alten Lauf – das baut den alten Stand).
-4. Unter dem Lauf → **Artifacts**: `Dosia-<Version>.aab` (Play Store) und `Dosia-<Version>.apk` (direkt installieren).
-5. Für die Homepage die APK nach `website/download/` legen und zusammen mit `website/CHANGELOG.md` hochladen.
-   Die Seite bietet automatisch die höchste Version an – und installierte Apps (ab 1.4.0) melden das Update von selbst.
+## Release bauen
+Gebaut wird in **GitHub Actions** (Workflow „Android Release (AAB + APK)").
+1. `version` in `package.json` erhöhen (z. B. `1.4.1` → `1.5.0`). Daraus folgen automatisch
+   `versionName`, `versionCode` (1.5.0 → 10500), die Anzeige in der App und die Dateinamen.
+2. Abschnitt im [CHANGELOG](CHANGELOG.md) ergänzen (`## 1.5.0 – TT.MM.JJJJ`), committen, pushen.
+3. **Actions → „Android Release (AAB + APK)" → Run workflow** (nicht „Re-run" eines alten Laufs – das baut den alten Stand).
+   Alternativ einen Tag `v1.5.0` pushen.
+4. Ergebnis unter **Artifacts**: `Dosia-<Version>.apk` (Homepage) und `Dosia-<Version>.aab` (Google Play).
 
-### Signatur (einmalig eingerichtet)
-GitHub-Secrets: `DOSIA_KEYSTORE_BASE64`, `DOSIA_STORE_PASSWORD`, `DOSIA_KEY_PASSWORD`, `DOSIA_KEY_ALIAS` (= `dosia`).
+**Signatur:** GitHub-Secrets `DOSIA_KEYSTORE_BASE64`, `DOSIA_STORE_PASSWORD`, `DOSIA_KEY_PASSWORD`, `DOSIA_KEY_ALIAS`.
+Lokal liest `android/app/build.gradle` stattdessen `keystore.properties` (nicht im Repo).
 
-> ⚠️ **Keystore sichern!** `dosia-upload.keystore` + Passwort sind für **alle** künftigen Updates nötig.
-> Ohne sie kann die App (auch im Play Store) nicht mehr aktualisiert werden. Passwortmanager + separates Backup.
+## Schnittstellen zur Homepage
+Die Homepage selbst liegt nicht in diesem Repo. Die App erwartet dort:
 
-## Google-Drive-Sicherung (Google Cloud, Projekt „Dosia")
-Scope `drive.appdata` (nur versteckter App-Ordner). Eingerichtet: Drive-API aktiviert, Google Auth Platform
-(Extern, Status „Testen"), Testnutzer, Android-Client mit Paketname `de.dominikest.dosia` und
-SHA-1 des Upload-Keys `14:D7:58:F0:28:90:AA:9A:50:97:13:EC:46:FD:B4:86:DD:66:FD:82`.
+**Datenschutzerklärung** – URL in `package.json` → `dosia.privacyUrl`, verlinkt unter „Mehr".
 
-**Für den Play Store noch nötig:**
-- Zweiter Android-Client mit dem SHA-1 des **App-Signaturschlüssels** aus der Play Console (*App-Integrität*)
-- App in der Google Auth Platform von „Testen" auf **„In Produktion"** stellen
+**Update-Info** – URL in `package.json` → `dosia.updateUrl`. Die App ruft sie mit `?v=<installierte Version>` auf und erwartet JSON:
+```json
+{
+  "version": "1.4.1",
+  "url": "https://…/Dosia-1.4.1.apk",
+  "sha256": "…",
+  "size": 4423625,
+  "notes": ["Neuigkeit 1", "Neuigkeit 2"],
+  "support": { "status": "ok | warning | blocked", "blockedFrom": "2026-10-23", "message": "" }
+}
+```
+- Ist `version` höher als die installierte, bietet die App das Update an. Vor der Installation prüft sie
+  SHA-256, Paketname und Versionsnummer; Android verlangt zusätzlich dieselbe Signatur.
+- `support` steuert die Versionssperre: `warning` zeigt einen Hinweis mit Datum, `blocked` (oder ein abgelaufenes
+  `blockedFrom`) lässt nur noch Update und Backup-Export zu. Geplante Erinnerungen laufen aus Sicherheitsgründen weiter.
+  Die Sperre gilt nur für die gemeldete Version, bleibt auch offline bestehen und verfällt nach einem Update.
+- Nur die `direct`-Variante fragt die Update-Info ab.
 
+## Google-Drive-Sicherung
+Scope `drive.appdata` – die App sieht nur ihren versteckten App-Ordner im Drive des Nutzers, keine anderen Dateien.
+Voraussetzung in der Google Cloud Console: Drive-API aktiviert, Google Auth Platform eingerichtet und ein
+Android-OAuth-Client mit Paketname `de.dominikest.dosia` und dem SHA-1 des jeweiligen Signaturzertifikats
+(für die Play-Version zusätzlich der SHA-1 des Play-App-Signaturschlüssels).
 Fehlercode `API_10` in der App = Client fehlt oder SHA-1/Paketname passt nicht.
 
-## Homepage (`website/`)
-- `index.php` – Präsentation + Download der neuesten `download/Dosia-x.y.z.apk` + Kasten „Neu in Version …"
-- `neuigkeiten.php` – alle Versionen aus `CHANGELOG.md` (`npm run sync` kopiert es nach `website/CHANGELOG.md` – mit hochladen)
-- `impressum.php`, `datenschutz.php` (Website), `datenschutz-app.php` (App, für Play Console und In-App-Link)
-- Persönliche Angaben nur in `website/config.php` (Vorlage: `config.example.php`), E-Mail wird spamgeschützt ausgegeben
-- Die URL der App-Datenschutzerklärung steht in `package.json` unter `dosia.privacyUrl`
-
-## Play-Store-Checkliste
-**Erledigt:** App-ID, targetSdk 36, Icons, Release-Signatur, AAB-Build, Datenschutzerklärung (Website + App, In-App-Link)
-
-**Offen (Play Console):**
-- [ ] Entwicklerkonto; bei neuen privaten Konten: geschlossener Test mit mind. 12 Testern über 14 Tage
-- [ ] AAB hochladen, Play App Signing aktivieren, danach zweiten OAuth-Client anlegen (siehe oben)
-- [ ] Datensicherheit: Daten bleiben auf dem Gerät; optionale Sicherung in Google Drive des Nutzers
-- [ ] Gesundheits-App-Erklärung, Begründung für exakte Alarme (zeitgenaue Einnahme-Erinnerungen)
-- [ ] Store-Eintrag: Texte, mind. 2 Screenshots, Feature-Grafik 1024×500, Altersfreigabe
-
+---
 Dosia ersetzt keine ärztliche, tierärztliche oder pharmazeutische Beratung.
