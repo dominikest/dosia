@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, copyFileSync } from 'node:fs';
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const { version } = pkg;
 const privacyUrl = (pkg.dosia && pkg.dosia.privacyUrl) || '';
+const updateUrl = (pkg.dosia && pkg.dosia.updateUrl) || '';
 if (!/^\d+\.\d+\.\d+$/.test(version)) {
   console.error(`Ungueltige Version in package.json: "${version}" (erwartet z. B. 1.2.3)`);
   process.exit(1);
@@ -12,7 +13,8 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) {
 writeFileSync(new URL('../www/version.js', import.meta.url),
   `// Automatisch erzeugt aus package.json – nicht von Hand aendern.\n`
   + `window.DOSIA_VERSION = ${JSON.stringify(version)};\n`
-  + `window.DOSIA_PRIVACY_URL = ${JSON.stringify(privacyUrl)};\n`);
+  + `window.DOSIA_PRIVACY_URL = ${JSON.stringify(privacyUrl)};\n`
+  + `window.DOSIA_UPDATE_URL = ${JSON.stringify(updateUrl)};\n`);
 console.log(`www/version.js -> ${version}${privacyUrl ? ' | Datenschutz: ' + privacyUrl : ''}`);
 
 // CHANGELOG für die Homepage (website/neuigkeiten.php) mitliefern

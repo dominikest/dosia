@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nur in der Homepage-Variante: erlaubt der App, Updates von der Homepage zu installieren.
+     Im Play-Build fehlt diese Berechtigung absichtlich (Play-Richtlinie). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+</manifest>

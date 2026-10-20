@@ -21,6 +21,16 @@ Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbun
 - **Verlauf & Therapietreue** (7/30 Tage, letzte 14 Tage)
 - **Notfall-Kontakt:** bei Dosen > 2 Std. offen mit Anruf-/SMS-Knopf
 - **Sicherung:** automatisch in Google Drive (versteckter App-Ordner) und Backup-Datei über das Teilen-Menü
+- **Selbst-Update** (nur Homepage-Variante): sucht auf der Homepage nach neuen Versionen und installiert sie auf Knopfdruck
+
+## Zwei Varianten (Gradle-Flavors)
+| Variante | Datei | Selbst-Update | Wofür |
+|---|---|---|---|
+| `direct` | `Dosia-x.y.z.apk` | ja (`REQUEST_INSTALL_PACKAGES`, `AppUpdatePlugin`) | Homepage-Download |
+| `play` | `Dosia-x.y.z.aab` | nein – Updates nur über Google Play (Play-Richtlinie) | Google Play |
+
+Die App fragt `dosia.updateUrl` aus `package.json` ab (`website/version.php`): Version, HTTPS-URL, SHA-256, Neuigkeiten.
+Vor der Installation prüft sie Prüfsumme, Paketname und Versionsnummer; Android verlangt zusätzlich dieselbe Signatur.
 
 ## Projektstruktur
 ```
@@ -56,7 +66,8 @@ Icons neu erzeugen (Quellen in `assets/`): `npm run icons`
 3. GitHub → **Actions → „Android Release (AAB + APK)" → Run workflow**
    (nicht „Re-run" bei einem alten Lauf – das baut den alten Stand).
 4. Unter dem Lauf → **Artifacts**: `Dosia-<Version>.aab` (Play Store) und `Dosia-<Version>.apk` (direkt installieren).
-5. Für die Homepage die APK nach `website/download/` legen und hochladen – die Seite bietet automatisch die höchste Version an.
+5. Für die Homepage die APK nach `website/download/` legen und zusammen mit `website/CHANGELOG.md` hochladen.
+   Die Seite bietet automatisch die höchste Version an – und installierte Apps (ab 1.4.0) melden das Update von selbst.
 
 ### Signatur (einmalig eingerichtet)
 GitHub-Secrets: `DOSIA_KEYSTORE_BASE64`, `DOSIA_STORE_PASSWORD`, `DOSIA_KEY_PASSWORD`, `DOSIA_KEY_ALIAS` (= `dosia`).

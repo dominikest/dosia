@@ -1,8 +1,9 @@
 {
   "name": "dosia",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "dosia": {
-    "privacyUrl": "https://dosia.iamdomi.de/datenschutz-app.php"
+    "privacyUrl": "https://dosia.iamdomi.de/datenschutz-app.php",
+    "updateUrl": "https://dosia.iamdomi.de/version.php"
   },
   "private": true,
   "description": "Dosia – persönliche Medikamentenverwaltung (offline, lokal). Eigene App, kein Server, keine Cloud.",

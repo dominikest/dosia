@@ -264,7 +264,7 @@ function render(){
 function renderToday(){
   const key=todayKey();
   const doses=visibleDoses(key);
-  let html = profileBar() + `<h2 class="section">Heute · ${doses.length} ${doses.length===1?'Dosis':'Dosen'}</h2>`;
+  let html = Updater.todayCard() + profileBar() + `<h2 class="section">Heute · ${doses.length} ${doses.length===1?'Dosis':'Dosen'}</h2>`;
 
   // Gewicht fällig (Medikament mit Gewichtserfassung läuft, heute noch kein Gewicht)
   for(const p of weightDueProfiles(key)){
@@ -526,6 +526,7 @@ function renderMore(){
   </div>`;
 
   html+=`<div class="card">${GDrive.cardHtml()}</div>`;
+  html+=Updater.moreCard();
 
   html+=`<div class="card">
     <div class="title">Datensicherung</div>
@@ -1171,3 +1172,5 @@ render();
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible'){ render(); refreshReminders(); } });
 // Google-Drive-Sicherung: spätestens alle 24 h
 GDrive.onStart();
+// Homepage-Variante: nach App-Updates suchen
+Updater.init();

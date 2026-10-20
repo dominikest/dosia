@@ -69,14 +69,15 @@ jobs:
           DOSIA_KEY_PASSWORD: ${{ secrets.DOSIA_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew bundleRelease assembleRelease --no-daemon
+          # AAB = Play-Variante (ohne Selbst-Update), APK = Homepage-Variante (mit Selbst-Update)
+          ./gradlew bundlePlayRelease assembleDirectRelease --no-daemon
 
       - name: Rename outputs with version
         run: |
           V=${{ steps.ver.outputs.version }}
           mkdir -p out
-          cp android/app/build/outputs/bundle/release/*.aab "out/Dosia-$V.aab"
-          cp android/app/build/outputs/apk/release/*.apk   "out/Dosia-$V.apk"
+          cp android/app/build/outputs/bundle/playRelease/*.aab   "out/Dosia-$V.aab"
+          cp android/app/build/outputs/apk/direct/release/*.apk  "out/Dosia-$V.apk"
           ls -l out
 
       - name: Upload AAB (fuer den Play Store)

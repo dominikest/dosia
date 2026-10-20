@@ -32,6 +32,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Zwei Vertriebswege aus demselben Code:
+    //  direct = APK für die Homepage, aktualisiert sich selbst (Berechtigung REQUEST_INSTALL_PACKAGES)
+    //  play   = AAB für Google Play, OHNE Selbst-Update (Play-Richtlinie: Updates nur über Play)
+    buildFeatures {
+        buildConfig = true
+    }
+    flavorDimensions = ["vertrieb"]
+    productFlavors {
+        direct {
+            dimension "vertrieb"
+            buildConfigField "boolean", "SELF_UPDATE", "true"
+        }
+        play {
+            dimension "vertrieb"
+            buildConfigField "boolean", "SELF_UPDATE", "false"
+        }
+    }
     signingConfigs {
         release {
             if (hasReleaseSigning) {

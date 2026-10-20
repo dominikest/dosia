@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 – 20.10.2026
+- **Automatische Updates:** Dosia sucht auf der Homepage nach neuen Versionen, zeigt „Update verfügbar" mit den Neuigkeiten
+  und installiert auf Knopfdruck (Download, Prüfung, dann nur noch „Installieren" bestätigen – deine Daten bleiben erhalten)
+- Unter „Mehr → App-Updates": installierte und neueste Version, „Nach Updates suchen", automatische Suche abschaltbar
+- Die Version aus Google Play aktualisiert sich weiterhin nur über Google Play
+
 ## 1.3.0 – 19.10.2026
 - Knöpfe **„✓ Genommen"** und **„⏰ In 10 Min."** direkt in der Benachrichtigung
   (die App hakt ab und schließt sich wieder; bei Gewichtserfassung bleibt sie für den Dialog offen)
