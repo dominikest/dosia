@@ -29,8 +29,19 @@ Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbun
 | `direct` | `Dosia-x.y.z.apk` | ja (`REQUEST_INSTALL_PACKAGES`, `AppUpdatePlugin`) | Homepage-Download |
 | `play` | `Dosia-x.y.z.aab` | nein – Updates nur über Google Play (Play-Richtlinie) | Google Play |
 
-Die App fragt `dosia.updateUrl` aus `package.json` ab (`website/version.php`): Version, HTTPS-URL, SHA-256, Neuigkeiten.
+Die App fragt `dosia.updateUrl` aus `package.json` ab (`website/version.php?v=<installierte Version>`): Version, HTTPS-URL,
+SHA-256, Neuigkeiten und den Support-Status dieser Version.
 Vor der Installation prüft sie Prüfsumme, Paketname und Versionsnummer; Android verlangt zusätzlich dieselbe Signatur.
+
+### Alte Versionen sperren (`website/update-settings.php`)
+- `keep_previous` – wie viele ältere Versionen neben der neuesten noch funktionieren (Standard 2)
+- `grace_days` – Tage mit Hinweis, bevor eine herausgefallene Version gesperrt wird (Standard 3, 0 = sofort)
+- `min_version` / `blocked` – zusätzlich alles unter einer Version bzw. einzelne Versionen sofort sperren
+- `message` – eigener Text auf Hinweis/Sperrbildschirm
+
+Versionen und Erscheinungsdaten kommen aus dem CHANGELOG; berücksichtigt werden nur Versionen, deren APK in
+`download/` liegt (oder ältere). Gesperrt wird die Bedienung (nur Update + Backup-Export), geplante Erinnerungen
+laufen aus Sicherheitsgründen weiter. Gilt nur für die Homepage-Variante. Ist die Datei fehlerhaft, wird niemand gesperrt.
 
 ## Projektstruktur
 ```

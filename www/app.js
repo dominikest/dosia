@@ -256,6 +256,11 @@ let currentTab = 'today';
 
 function render(){
   $('#headerDate').textContent = fmtDate(new Date());
+  // Gesperrte App-Version: nur Sperrbildschirm (Update / Backup), keine Bedienung
+  const locked = Updater.blockedNow();
+  $('#tabs').style.display = locked ? 'none' : '';
+  $('#fab').style.display  = locked ? 'none' : '';
+  if(locked){ view.innerHTML = Updater.blockScreen(); return; }
   ({today:renderToday, meds:renderMeds, measure:renderMeasure, history:renderHistory, more:renderMore}[currentTab])();
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===currentTab));
 }

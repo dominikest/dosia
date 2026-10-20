@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1 – 20.10.2026
+- Veraltete Versionen werden nach einer Übergangsfrist nicht mehr unterstützt: Erst erscheint ein Hinweis mit Datum,
+  danach bietet Dosia nur noch das Update und einen Backup-Export an (bereits geplante Erinnerungen laufen weiter)
+- Der Schalter unter „Mehr → App-Updates" blendet jetzt nur den Hinweis auf neue Versionen aus
+
 ## 1.4.0 – 20.10.2026
 - **Automatische Updates:** Dosia sucht auf der Homepage nach neuen Versionen, zeigt „Update verfügbar" mit den Neuigkeiten
   und installiert auf Knopfdruck (Download, Prüfung, dann nur noch „Installieren" bestätigen – deine Daten bleiben erhalten)

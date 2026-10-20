@@ -8,7 +8,8 @@
 const Updater = (() => {
   const STATE_KEY = 'dosia.update.v1';
   const CHECK_EVERY_MS = 6 * 3600 * 1000;       // automatisch höchstens alle 6 Stunden
-  const defaults = () => ({ auto:true, lastCheck:0, latest:null, dismissed:'' });
+  // support = Antwort des Servers zur Versionssperre: { status:'ok'|'warning'|'blocked', blockedFrom, message, forVersion }
+  const defaults = () => ({ auto:true, lastCheck:0, latest:null, dismissed:'', support:null });
   let state = load();
   let info = null;           // { selfUpdate, flavor, canInstall } vom Plugin
   let busy = false, progress = null, error = '';
@@ -22,28 +23,47 @@ const Updater = (() => {
   const enabled = () => !!(info && info.selfUpdate && window.DOSIA_UPDATE_URL);
   const available = () => !!(state.latest && vcode(state.latest.version) > vcode(current()));
 
+  // Versionssperre gilt nur für genau die Version, für die der Server sie gemeldet hat (nach einem Update verfällt sie)
+  const support = () => (state.support && state.support.forVersion===current()) ? state.support : null;
+  const blockedNow = () => {
+    const s = support(); if(!enabled() || !s) return false;
+    if(s.status==='blocked') return true;
+    // Hinweis-Phase abgelaufen? Dann auch offline sperren
+    return s.status==='warning' && s.blockedFrom && todayKey() >= s.blockedFrom;
+  };
+  const warningNow = () => { const s=support(); return enabled() && !!s && s.status==='warning' && !blockedNow(); };
+
+  // Prüfung läuft immer (auch wenn der Update-Hinweis abgeschaltet ist) – sonst ließe sich die Sperre umgehen.
+  // Bei Hinweis/Sperre bei jedem Start, sonst höchstens alle 6 Stunden.
+  const due = () => { const age = Date.now() - state.lastCheck;
+    return enabled() && (age > CHECK_EVERY_MS || (!!support() && age > 10*60000)); };
   async function init(){
     if(!plugin()) return;
     try{ info = await plugin().getInfo(); }catch{ info = null; }
     if(!enabled()) return;
-    if(state.auto && Date.now() - state.lastCheck > CHECK_EVERY_MS){
+    if(blockedNow()) rerender();                 // gemerkte Sperre sofort anzeigen (auch offline)
+    if(due()){
       try{ await check(); }catch{ /* offline – später erneut */ }
       rerender();
     }
   }
   // Beim Zurückkehren in die App gelegentlich prüfen
   document.addEventListener('visibilitychange', ()=>{
-    if(document.visibilityState==='visible' && enabled() && state.auto && Date.now()-state.lastCheck > CHECK_EVERY_MS)
-      check().then(rerender).catch(()=>{});
+    if(document.visibilityState==='visible' && due()) check().then(rerender).catch(()=>{});
   });
 
   async function check(){
-    const res = await fetch(window.DOSIA_UPDATE_URL + (window.DOSIA_UPDATE_URL.includes('?')?'&':'?') + 't=' + Date.now(),
+    const base = window.DOSIA_UPDATE_URL;
+    const res = await fetch(base + (base.includes('?')?'&':'?') + 'v=' + encodeURIComponent(current()) + '&t=' + Date.now(),
                             { headers:{ 'Accept':'application/json' } });
     if(!res.ok) throw new Error('Update-Server antwortet mit ' + res.status);
     const j = await res.json();
     if(!j || !/^\d+\.\d+\.\d+$/.test(j.version||'') || !/^https:\/\//.test(j.url||'')) throw new Error('Ungültige Antwort vom Update-Server');
     state.latest = { version:j.version, url:j.url, sha256:j.sha256||'', size:j.size||0, date:j.date||'', notes:Array.isArray(j.notes)?j.notes.slice(0,8):[] };
+    const s = j.support;
+    state.support = (s && (s.status==='warning' || s.status==='blocked'))
+      ? { status:s.status, blockedFrom:s.blockedFrom||'', message:String(s.message||'').slice(0,500), forVersion:current() }
+      : null;
     state.lastCheck = Date.now();
     save();
     return available();
@@ -103,9 +123,42 @@ const Updater = (() => {
   }
 
   /* ---------- Oberfläche ---------- */
+  const fmtDay = d => { try{ return new Date(d+'T00:00').toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'}); }catch{ return d; } };
+
+  // Ganze Ansicht ersetzt, wenn diese Version gesperrt ist
+  function blockScreen(){
+    const s = support() || {}, l = state.latest, upd = available();
+    return `<div class="card" style="border-color:var(--danger);margin-top:8px">
+      <div style="font-size:40px;line-height:1">⛔</div>
+      <div class="title" style="font-size:19px;margin-top:8px;white-space:normal">Diese Version wird nicht mehr unterstützt</div>
+      <div class="sub" style="margin-top:6px">Installiert ist Dosia <b>${esc(current())}</b>. Bitte aktualisiere auf die neueste Version${upd?` (<b>${esc(l.version)}</b>)`:''}, um Dosia weiter zu nutzen. Deine Daten bleiben dabei erhalten.</div>
+      ${s.message?`<div class="hint">${esc(s.message)}</div>`:''}
+      ${upd && l.notes.length?`<ul class="sub" style="margin:10px 0 0;padding-left:20px">${notesHtml(l.notes,4)}</ul>`:''}
+      <div class="actions" style="margin-top:14px;flex-direction:column;align-items:stretch">
+        ${upd?`<button class="btn-primary" onclick="updAct.install()">Jetzt aktualisieren</button>`
+             :`<div class="notice">Gerade ist keine neuere Version zum Herunterladen verfügbar. Bitte versuche es später noch einmal.</div>`}
+        <button class="btn-ghost" onclick="updAct.checkNow()">Erneut prüfen</button>
+        <button class="btn-ghost" onclick="act.exportData()">Backup exportieren</button>
+      </div>
+      <div class="sub" style="margin-top:12px">Bereits geplante Erinnerungen laufen vorerst weiter.</div>
+    </div>`;
+  }
+
   // Karte oben auf "Heute"
   function todayCard(){
-    if(!enabled() || !available() || state.dismissed===state.latest.version) return '';
+    if(!enabled()) return '';
+    // Hinweis-Phase: nicht wegklickbar, mit Datum der Sperre
+    if(warningNow()){
+      const s = support(), l = state.latest, upd = available();
+      return `<div class="card" style="border-color:var(--warn)"><div class="row">
+          <div class="pill">⚠️</div>
+          <div class="grow"><div class="title" style="white-space:normal">Bitte aktualisieren</div>
+            <div class="sub">Dosia ${esc(current())} funktioniert nur noch bis <b>${esc(fmtDay(s.blockedFrom))}</b>.${upd?` Neu: ${esc(l.version)}.`:''}</div></div></div>
+        ${s.message?`<div class="hint">${esc(s.message)}</div>`:''}
+        ${upd?`<div class="actions" style="margin-top:10px"><button class="btn-primary btn-sm" onclick="updAct.install()">Jetzt aktualisieren</button></div>`:''}
+      </div>`;
+    }
+    if(!state.auto || !available() || state.dismissed===state.latest.version) return '';
     const l = state.latest;
     return `<div class="card" style="border-color:var(--brand)"><div class="row">
         <div class="pill">⬆️</div>
@@ -125,7 +178,7 @@ const Updater = (() => {
       <div class="sub">Installiert: <b>${esc(current())}</b>${l?` · Neueste: <b>${esc(l.version)}</b>`:''}${state.lastCheck?` · geprüft ${new Date(state.lastCheck).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`:''}</div>
       ${upd && l.notes.length?`<ul class="sub" style="margin:8px 0 0;padding-left:20px">${notesHtml(l.notes,6)}</ul>`:''}
       <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-        <input type="checkbox" ${state.auto?'checked':''} onchange="updAct.toggleAuto(this.checked)"> Automatisch nach Updates suchen</label>
+        <input type="checkbox" ${state.auto?'checked':''} onchange="updAct.toggleAuto(this.checked)"> Auf „Heute" auf neue Versionen hinweisen</label>
       <div class="actions" style="margin-top:10px">
         ${upd?`<button class="btn-primary btn-sm" onclick="updAct.install()">Auf ${esc(l.version)} aktualisieren</button>`:''}
         <button class="btn-ghost btn-sm" onclick="updAct.checkNow()">Nach Updates suchen</button>
@@ -135,7 +188,7 @@ const Updater = (() => {
   window.updAct = {
     install: () => install(),
     later: () => { state.dismissed = state.latest ? state.latest.version : ''; save(); rerender(); },
-    toggleAuto: v => { state.auto = !!v; save(); },
+    toggleAuto: v => { state.auto = !!v; save(); rerender(); },
     checkNow: async () => {
       try{
         const neu = await check();
@@ -145,5 +198,5 @@ const Updater = (() => {
     },
   };
 
-  return { init, todayCard, moreCard };
+  return { init, todayCard, moreCard, blockedNow, blockScreen };
 })();
