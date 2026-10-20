@@ -17,6 +17,8 @@ Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbun
 - **Einnahmepläne:** täglich, bestimmte Wochentage, alle X Tage / Wochen / Monate, Zyklus (an/aus), mehrere Uhrzeiten, Start/Ende
 - **Erinnerungen:** native Android-Benachrichtigungen, auch bei geschlossener App und nach Neustart;
   Knöpfe **„✓ Genommen"** und **„⏰ In 10 Min."** direkt in der Benachrichtigung; wiederholtes **Nachhaken**, bis abgehakt (Abstand und Anzahl einstellbar)
+- **Wecker-Modus** pro Medikament: klingelt bildschirmfüllend wie ein Wecker (auch auf dem Sperrbildschirm), bis „Genommen" oder „Später" getippt wird
+- **Zuverlässigkeits-Check:** prüft die Android-Einstellungen, die Erinnerungen verhindern oder verzögern können, mit Direktlinks und Test-Erinnerung
 - **Heute-Ansicht:** abhaken / überspringen, Tagesfortschritt, Hinweise auf fälliges Gewicht und knappen Vorrat
 - **Vorrat:** Bestand wird beim Abhaken abgezogen, Reichweite in Tagen, **Nachkauf-Erinnerung**
 - **Gewicht zum Medikament:** pro Medikament zuschaltbar – Abfrage beim ersten Abhaken des Tages
@@ -25,13 +27,15 @@ Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbun
 - **Notfall-Kontakt:** bei Dosen > 2 Std. offen mit Anruf-/SMS-Knopf
 - **Sicherung:** automatisch in Google Drive (versteckter App-Ordner) und Backup-Datei über das Teilen-Menü
 - **Selbst-Update** (nur Homepage-Variante): sucht nach neuen Versionen, installiert auf Knopfdruck, alte Versionen können gesperrt werden
+- **Sprachen:** Deutsch und Englisch (automatisch nach Systemsprache oder in der App wählbar)
 
 ## Projektstruktur
 ```
 Dosia/
-  www/                    Die App (HTML/CSS/JS): app.js, gdrive.js, update.js, index.html; version.js wird erzeugt
+  www/                    Die App (HTML/CSS/JS): app.js, gdrive.js, update.js, i18n.js (Englisch), index.html; version.js wird erzeugt
   android/                Capacitor-Android-Projekt
-    app/src/main/java/…   MainActivity, GoogleDrivePlugin (Drive-Anmeldung), AppUpdatePlugin (Selbst-Update)
+    app/src/main/java/…   MainActivity, GoogleDrivePlugin (Drive-Anmeldung), AppUpdatePlugin (Selbst-Update),
+                          DoseAlarm* (Wecker-Modus und Zuverlässigkeits-Check)
     app/src/direct/       Manifest-Ergänzung nur für die Homepage-Variante (Berechtigung „Apps installieren")
   assets/                 Icon-Quellen (1024 px) für die Icon-Generierung
   scripts/                write-version.mjs: Version und URLs aus package.json -> www/version.js
@@ -58,7 +62,8 @@ npm run sync
 Gebaut wird in **GitHub Actions** (Workflow „Android Release (AAB + APK)").
 1. `version` in `package.json` erhöhen (z. B. `1.4.1` → `1.5.0`). Daraus folgen automatisch
    `versionName`, `versionCode` (1.5.0 → 10500), die Anzeige in der App und die Dateinamen.
-2. Abschnitt im [CHANGELOG](CHANGELOG.md) ergänzen (`## 1.5.0 – TT.MM.JJJJ`), committen, pushen.
+2. Abschnitt im [CHANGELOG](CHANGELOG.md) und im englischen [CHANGELOG.en.md](CHANGELOG.en.md) ergänzen
+   (`## 1.5.0 – TT.MM.JJJJ`), committen, pushen.
 3. **Actions → „Android Release (AAB + APK)" → Run workflow** (nicht „Re-run" eines alten Laufs – das baut den alten Stand).
    Alternativ einen Tag `v1.5.0` pushen.
 4. Ergebnis unter **Artifacts**: `Dosia-<Version>.apk` (Homepage) und `Dosia-<Version>.aab` (Google Play).
@@ -68,7 +73,7 @@ Lokal liest `android/app/build.gradle` stattdessen `keystore.properties` (nicht 
 
 **Automatisch auf die Homepage:** Sind die Secrets `DOSIA_DEPLOY_URL` (`sftp://host` oder `ftp://host` – FTP nur
 TLS-verschlüsselt), `DOSIA_DEPLOY_USER`, `DOSIA_DEPLOY_PASSWORD` und `DOSIA_DEPLOY_PATH` gesetzt, lädt der Build
-`Dosia-<Version>.apk` nach `download/` und das `CHANGELOG.md` in den Homepage-Ordner (erst unter Zwischennamen, dann
+`Dosia-<Version>.apk` nach `download/` und `CHANGELOG.md` sowie `CHANGELOG.en.md` in den Homepage-Ordner (erst unter Zwischennamen, dann
 umbenannt) und prüft danach über die Update-Info, ob Version und SHA-256 stimmen. Beim manuellen Start lässt sich
 das Hochladen mit „veroeffentlichen" abwählen (z. B. für Testbuilds); ohne Secrets wird es übersprungen.
 
@@ -77,7 +82,8 @@ Die Homepage selbst liegt nicht in diesem Repo. Die App erwartet dort:
 
 **Datenschutzerklärung** – URL in `package.json` → `dosia.privacyUrl`, verlinkt unter „Mehr".
 
-**Update-Info** – URL in `package.json` → `dosia.updateUrl`. Die App ruft sie mit `?v=<installierte Version>` auf und erwartet JSON:
+**Update-Info** – URL in `package.json` → `dosia.updateUrl`. Die App ruft sie mit `?v=<installierte Version>&lang=<de|en>` auf
+(die `notes` kommen dann in der Sprache der App) und erwartet JSON:
 ```json
 {
   "version": "1.4.1",

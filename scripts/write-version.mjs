@@ -20,10 +20,14 @@ console.log(`www/version.js -> ${version}${privacyUrl ? ' | Datenschutz: ' + pri
 // CHANGELOG für die Homepage (website/neuigkeiten.php) mitliefern – der Ordner website/ ist nicht im Git,
 // existiert also nur lokal (im Cloud-Build fehlt er)
 if (existsSync(new URL('../website/', import.meta.url))) {
-  copyFileSync(new URL('../CHANGELOG.md', import.meta.url), new URL('../website/CHANGELOG.md', import.meta.url));
-  console.log('CHANGELOG.md -> website/CHANGELOG.md');
+  for (const f of ['CHANGELOG.md', 'CHANGELOG.en.md']) {
+    copyFileSync(new URL('../' + f, import.meta.url), new URL('../website/' + f, import.meta.url));
+    console.log(`${f} -> website/${f}`);
+  }
 }
-// Hinweis, falls die Version im CHANGELOG noch fehlt
-if (!readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8').includes(`## ${version}`)) {
-  console.warn(`Hinweis: Im CHANGELOG.md gibt es noch keinen Abschnitt "## ${version}".`);
+// Hinweis, falls die Version in einem CHANGELOG noch fehlt (deutsch und englisch)
+for (const f of ['CHANGELOG.md', 'CHANGELOG.en.md']) {
+  if (!readFileSync(new URL('../' + f, import.meta.url), 'utf8').includes(`## ${version}`)) {
+    console.warn(`Hinweis: In ${f} gibt es noch keinen Abschnitt "## ${version}".`);
+  }
 }

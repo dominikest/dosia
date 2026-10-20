@@ -137,6 +137,9 @@ jobs:
           put CHANGELOG.md -o .upload-CHANGELOG.md
           rm -f CHANGELOG.md
           mv .upload-CHANGELOG.md CHANGELOG.md
+          put CHANGELOG.en.md -o .upload-CHANGELOG.en.md
+          rm -f CHANGELOG.en.md
+          mv .upload-CHANGELOG.en.md CHANGELOG.en.md
           ls -l download
           bye
           EOF
