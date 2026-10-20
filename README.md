@@ -1,5 +1,8 @@
 # Dosia – Medikamente im Griff
 
+Hallo aus Ärger das meine Lieblings app auf einmal mit einem ABO um die Ecke kam, habe mich hingesetzt und habe diese App entwickelt. Ich hoffe Sie gefällt euch und hilft euch genauso wie mir!
+
+
 Android-App zur Medikamentenverwaltung für dich, Angehörige und Haustiere – mit zuverlässigen
 Erinnerungen, Vorratsübersicht und Messwerten. Alle Daten bleiben **auf dem Gerät**; optional
 Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbung.
