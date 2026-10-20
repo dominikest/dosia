@@ -1,6 +1,6 @@
 # Dosia – Medikamente im Griff
 
-Ich habe letzte Woche feststellen müssen, das eine meiner Lieblings Apps von heute auf morgen auf ein Monatliches Abo umgestellt hat! 5€ für eine Erinnerungs App? Nein danke!! Daher habe mich mich dran gemacht, und habe diese App Entwickelt. Für mich funktioniert Sie super, vielleicht hilft Sie euch oder euerem Haustier auch? Ich würde mich freuen. 
+Ich habe letzte Woche feststellen müssen, das eine meiner Lieblings App von heute auf morgen auf ein Monatliches Abo umgestellt hat! 5€ für eine Erinnerungs App? Nein danke!! Daher habe mich mich dran gemacht, und habe diese App Entwickelt. Für mich funktioniert Sie super, vielleicht hilft Sie euch oder euerem Haustier auch? Ich würde mich freuen. 
 
 
 Android-App zur Medikamentenverwaltung für dich, Angehörige und Haustiere – mit zuverlässigen
