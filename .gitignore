@@ -29,8 +29,15 @@ Thumbs.db
 # Heruntergeladene Builds
 release/
 
-# Persoenliche Angaben fuer Impressum/Datenschutz
-website/config.php
+# Nur lokal: Homepage (enthaelt persoenliche Angaben), private Unterlagen, Konzepte
+website/
+Daten/
+MONETARISIERUNG.md
 
-# Kopie fuer die Homepage (wird von npm run sync erzeugt)
-website/CHANGELOG.md
+# Zugangsdaten jeglicher Art – nie ins Git
+client_secret*.json
+google-services.json
+*.pem
+*.p12
+.env
+.env.*
