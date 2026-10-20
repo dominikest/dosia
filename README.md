@@ -4,7 +4,7 @@ Android-App zur Medikamentenverwaltung für dich, Angehörige und Haustiere – 
 Erinnerungen, Vorratsübersicht und Messwerten. Alle Daten bleiben **auf dem Gerät**; optional
 Sicherung im eigenen Google Drive. Kein eigener Server, kein Konto, keine Werbung.
 
-- **Homepage & Download:** https://dosia24.de
+- **Homepage & Download:** https://www.dosia24.de
 - **Aktuelle Version:** siehe `version` in [package.json](package.json) · Änderungen im [CHANGELOG](CHANGELOG.md)
 - **App-ID:** `de.dominikest.dosia` · **minSdk 24** (Android 7+) · **targetSdk 36**
 - **Stack:** Capacitor 8 (WebView-App aus `www/`) · AGP 8.13 · Gradle 8.14.3
