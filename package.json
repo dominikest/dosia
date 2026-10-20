@@ -11,7 +11,7 @@
     "version:write": "node scripts/write-version.mjs",
     "sync": "node scripts/write-version.mjs && cap sync android",
     "copy": "node scripts/write-version.mjs && cap copy android",
-    "icons": "capacitor-assets generate --android",
+    "icons": "npx --yes @capacitor/assets@3.0.5 generate --android",
     "open:android": "cap open android"
   },
   "dependencies": {
@@ -23,7 +23,9 @@
     "@capacitor/share": "^8.0.3"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3",
     "@capacitor/cli": "^8"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }
