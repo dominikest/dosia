@@ -1,16 +1,27 @@
 name: Android Release (AAB + APK)
 
-# Baut ein signiertes App Bundle (.aab) fuer den Play Store und ein signiertes .apk.
-# Laeuft auf Linux -> umgeht die AF_UNIX-/Proxy-Probleme der lokalen Umgebung.
+# Baut ein signiertes App Bundle (.aab) für Google Play und ein signiertes .apk für die Homepage
+# und lädt APK + CHANGELOG automatisch auf die Homepage hoch (wenn Zugangsdaten hinterlegt sind).
 #
-# Benoetigte GitHub-Secrets (Repo -> Settings -> Secrets and variables -> Actions):
-#   DOSIA_KEYSTORE_BASE64  = Base64 des Upload-Keystores (Inhalt von KEYSTORE-BASE64.txt)
-#   DOSIA_STORE_PASSWORD   = Store-Passwort (siehe KEYSTORE-PASSWORT.txt)
-#   DOSIA_KEY_PASSWORD     = Key-Passwort (identisch zum Store-Passwort)
-#   DOSIA_KEY_ALIAS        = dosia
+# GitHub-Secrets (Repo -> Settings -> Secrets and variables -> Actions):
+#   Signatur (Pflicht):
+#     DOSIA_KEYSTORE_BASE64  = Base64 des Upload-Keystores
+#     DOSIA_STORE_PASSWORD   = Store-Passwort
+#     DOSIA_KEY_PASSWORD     = Key-Passwort
+#     DOSIA_KEY_ALIAS        = Alias des Schlüssels
+#   Homepage-Upload (optional – fehlen sie, wird der Upload übersprungen):
+#     DOSIA_DEPLOY_URL       = sftp://host[:port]   oder   ftp://host  (FTP wird nur verschlüsselt per TLS genutzt)
+#     DOSIA_DEPLOY_USER      = Benutzername
+#     DOSIA_DEPLOY_PASSWORD  = Passwort
+#     DOSIA_DEPLOY_PATH      = Ordner der Homepage auf dem Server (dort liegen index.php und version.php), z. B. /  oder  /httpdocs/dosia
 
 on:
   workflow_dispatch:
+    inputs:
+      veroeffentlichen:
+        description: 'APK und CHANGELOG auf die Homepage hochladen (installierte Apps bieten dann das Update an)'
+        type: boolean
+        default: true
   push:
     tags:
       - 'v*'
@@ -39,7 +50,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          # Standard waere 'tools' – das Paket gibt es nicht mehr
+          # Standard wäre 'tools' – das Paket gibt es nicht mehr
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
       - name: Read version
@@ -56,7 +67,7 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.DOSIA_KEYSTORE_BASE64 }}
         run: |
-          # Leerzeichen/Zeilenumbrueche tolerieren
+          # Leerzeichen/Zeilenumbrüche tolerieren
           printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/dosia-upload.keystore"
           ls -l "$RUNNER_TEMP/dosia-upload.keystore"
 
@@ -91,3 +102,64 @@ jobs:
         with:
           name: Dosia-${{ steps.ver.outputs.version }}-apk
           path: out/Dosia-${{ steps.ver.outputs.version }}.apk
+
+      # ---------- Homepage ----------
+      - name: Auf die Homepage hochladen
+        id: deploy
+        if: ${{ github.event_name == 'push' || inputs.veroeffentlichen }}
+        env:
+          DEPLOY_URL: ${{ secrets.DOSIA_DEPLOY_URL }}
+          DEPLOY_USER: ${{ secrets.DOSIA_DEPLOY_USER }}
+          LFTP_PASSWORD: ${{ secrets.DOSIA_DEPLOY_PASSWORD }}
+          DEPLOY_PATH: ${{ secrets.DOSIA_DEPLOY_PATH }}
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          if [ -z "$DEPLOY_URL" ] || [ -z "$DEPLOY_USER" ] || [ -z "$LFTP_PASSWORD" ]; then
+            echo "Keine Homepage-Zugangsdaten hinterlegt – Upload übersprungen."
+            echo "Homepage-Upload: übersprungen (keine Zugangsdaten)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          case "$DEPLOY_URL" in sftp://*|ftp://*) ;; *) echo "::error::DOSIA_DEPLOY_URL muss mit sftp:// oder ftp:// beginnen"; exit 1;; esac
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp > /dev/null
+          # Erst unter Zwischennamen hochladen, dann umbenennen: die Homepage liefert nie eine halbe Datei aus.
+          lftp --env-password -u "$DEPLOY_USER" "$DEPLOY_URL" <<EOF
+          set cmd:fail-exit yes
+          set net:max-retries 3
+          set net:timeout 30
+          set sftp:auto-confirm yes
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          cd "${DEPLOY_PATH:-/}"
+          mkdir -p -f download
+          put out/Dosia-$V.apk -o download/.upload-Dosia-$V.apk
+          rm -f download/Dosia-$V.apk
+          mv download/.upload-Dosia-$V.apk download/Dosia-$V.apk
+          put CHANGELOG.md -o .upload-CHANGELOG.md
+          rm -f CHANGELOG.md
+          mv .upload-CHANGELOG.md CHANGELOG.md
+          ls -l download
+          bye
+          EOF
+          echo "uploaded=true" >> "$GITHUB_OUTPUT"
+
+      - name: Homepage prüfen
+        if: ${{ steps.deploy.outputs.uploaded == 'true' }}
+        env:
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          URL=$(node -p "require('./package.json').dosia.updateUrl")
+          LOCAL_SHA=$(sha256sum "out/Dosia-$V.apk" | cut -d' ' -f1)
+          sleep 3
+          J=$(curl -fsS "$URL?v=$V&t=$(date +%s)")
+          REMOTE_V=$(echo "$J" | jq -r .version)
+          REMOTE_SHA=$(echo "$J" | jq -r .sha256)
+          echo "Homepage meldet Version $REMOTE_V"
+          if [ "$REMOTE_V" = "$V" ] && [ "$REMOTE_SHA" = "$LOCAL_SHA" ]; then
+            echo "Homepage-Upload: ✅ Version $V ist online, Prüfsumme stimmt – installierte Apps bieten das Update an." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$(printf '%s\n%s\n' "$V" "$REMOTE_V" | sort -V | tail -1)" = "$REMOTE_V" ] && [ "$REMOTE_V" != "$V" ]; then
+            echo "::warning::Auf der Homepage liegt bereits eine neuere Version ($REMOTE_V); $V wurde hochgeladen, wird aber nicht angeboten."
+            echo "Homepage-Upload: ⚠️ hochgeladen, aber neuere Version $REMOTE_V ist schon online" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::Homepage meldet Version $REMOTE_V / Prüfsumme ${REMOTE_SHA:0:12}… – erwartet $V / ${LOCAL_SHA:0:12}…"
+            exit 1
+          fi

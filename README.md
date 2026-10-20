@@ -63,6 +63,12 @@ Gebaut wird in **GitHub Actions** (Workflow „Android Release (AAB + APK)").
 **Signatur:** GitHub-Secrets `DOSIA_KEYSTORE_BASE64`, `DOSIA_STORE_PASSWORD`, `DOSIA_KEY_PASSWORD`, `DOSIA_KEY_ALIAS`.
 Lokal liest `android/app/build.gradle` stattdessen `keystore.properties` (nicht im Repo).
 
+**Automatisch auf die Homepage:** Sind die Secrets `DOSIA_DEPLOY_URL` (`sftp://host` oder `ftp://host` – FTP nur
+TLS-verschlüsselt), `DOSIA_DEPLOY_USER`, `DOSIA_DEPLOY_PASSWORD` und `DOSIA_DEPLOY_PATH` gesetzt, lädt der Build
+`Dosia-<Version>.apk` nach `download/` und das `CHANGELOG.md` in den Homepage-Ordner (erst unter Zwischennamen, dann
+umbenannt) und prüft danach über die Update-Info, ob Version und SHA-256 stimmen. Beim manuellen Start lässt sich
+das Hochladen mit „veroeffentlichen" abwählen (z. B. für Testbuilds); ohne Secrets wird es übersprungen.
+
 ## Schnittstellen zur Homepage
 Die Homepage selbst liegt nicht in diesem Repo. Die App erwartet dort:
 
