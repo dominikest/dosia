@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0 – 20.10.2026
+- **Wecker-Modus** für wichtige Medikamente: Die Erinnerung klingelt bildschirmfüllend mit Wecker-Ton – auch bei gesperrtem Handy –, bis du „Genommen" oder „Später" tippst (pro Medikament einschaltbar)
+- **Zuverlässigkeits-Check** unter „Mehr": prüft Benachrichtigungen, exakte Wecker, Akku-Optimierung und mehr, mit Knopf direkt zur passenden Einstellung und Test-Erinnerung; Hinweis auf „Heute", wenn Erinnerungen gefährdet sind
+- **Englisch:** Dosia gibt es jetzt auch auf Englisch (automatisch nach Systemsprache oder unter „Mehr → Sprache")
+
 ## 1.5.1 – 20.10.2026
 - Neue Homepage: **dosia24.de** (Updates, Download und Datenschutzerklärung kommen jetzt von dort)
 

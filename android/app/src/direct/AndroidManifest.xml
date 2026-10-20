@@ -3,4 +3,7 @@
      Im Play-Build fehlt diese Berechtigung absichtlich (Play-Richtlinie). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Zuverlässigkeits-Check: direkte Rückfrage "Akku-Optimierung für Dosia beenden?".
+         Im Play-Build fehlt sie (dort öffnet der Check die Akku-Einstellungen). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>

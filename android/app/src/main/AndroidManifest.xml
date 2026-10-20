@@ -20,6 +20,26 @@
             </intent-filter>
         </activity>
 
+        <!-- Wecker-Modus: bildschirmfüllende Erinnerung, auch auf dem Sperrbildschirm -->
+        <activity
+            android:name=".DoseAlarmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
+        <receiver android:name=".DoseAlarmReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -40,4 +60,7 @@
          USE_EXACT_ALARM ist fuer Erinnerungs-/Wecker-Apps zulaessig (Dosia erinnert an Medikamente). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Wecker-Modus: Erinnerung bildschirmfüllend anzeigen und vibrieren -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         // Eigene (lokale) Plugins vor super.onCreate registrieren
         registerPlugin(GoogleDrivePlugin.class);
         registerPlugin(AppUpdatePlugin.class);
+        registerPlugin(DoseAlarmPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

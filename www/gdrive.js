@@ -31,15 +31,15 @@ const GDrive = (() => {
   // Verstaendliche Fehlermeldungen
   function message(e){
     const code = (e && e.code) || '';
-    if(code === 'API_10') return 'Google-Anmeldung ist für diese App noch nicht freigeschaltet (OAuth-Client in der Google Cloud Console fehlt oder der SHA-1-Fingerabdruck passt nicht).';
-    if(code === 'API_7' || /network|Failed to fetch|Unable to resolve/i.test(e && e.message || '')) return 'Keine Internetverbindung.';
-    if(code === 'API_12501') return 'Anmeldung abgebrochen.';
-    if(code === 'CANCELED') return 'Anmeldung abgebrochen. Falls du nicht selbst abgebrochen hast: Die App ist bei Google noch nicht vollständig eingerichtet (Testnutzer eingetragen? Android-Client mit Paketname und SHA-1 angelegt?).';
-    if(/^API_\d+$/.test(code)) return `Google-Anmeldung fehlgeschlagen (Code ${code.slice(4)}): ${(e && e.message) || ''}`.trim();
-    if(code === 'CONSENT_REQUIRED') return 'Automatische Sicherung fehlgeschlagen: Google möchte den Zugriff neu bestätigt haben. Tippe auf „Jetzt sichern".';
-    if(e && e.status === 401) return 'Zugriff abgelaufen. Bitte erneut mit Google verbinden.';
-    if(e && e.status === 403) return 'Google Drive hat den Zugriff verweigert (ist die Drive-API im Cloud-Projekt aktiviert?).';
-    return (e && e.message) ? e.message : 'Unbekannter Fehler.';
+    if(code === 'API_10') return t('Google-Anmeldung ist für diese App noch nicht freigeschaltet (OAuth-Client in der Google Cloud Console fehlt oder der SHA-1-Fingerabdruck passt nicht).');
+    if(code === 'API_7' || /network|Failed to fetch|Unable to resolve/i.test(e && e.message || '')) return t('Keine Internetverbindung.');
+    if(code === 'API_12501') return t('Anmeldung abgebrochen.');
+    if(code === 'CANCELED') return t('Anmeldung abgebrochen. Falls du nicht selbst abgebrochen hast: Die App ist bei Google noch nicht vollständig eingerichtet (Testnutzer eingetragen? Android-Client mit Paketname und SHA-1 angelegt?).');
+    if(/^API_\d+$/.test(code)) return `${t('Google-Anmeldung fehlgeschlagen (Code {c}):',{c:code.slice(4)})} ${(e && e.message) || ''}`.trim();
+    if(code === 'CONSENT_REQUIRED') return t('Automatische Sicherung fehlgeschlagen: Google möchte den Zugriff neu bestätigt haben. Tippe auf „Jetzt sichern".');
+    if(e && e.status === 401) return t('Zugriff abgelaufen. Bitte erneut mit Google verbinden.');
+    if(e && e.status === 403) return t('Google Drive hat den Zugriff verweigert (ist die Drive-API im Cloud-Projekt aktiviert?).');
+    return (e && e.message) ? e.message : t('Unbekannter Fehler.');
   }
 
   async function getToken(interactive){
@@ -53,7 +53,7 @@ const GDrive = (() => {
     const res = await fetch(url, { method, headers, body });
     const text = await res.text();
     if(!res.ok){
-      const err = new Error('Google Drive meldet Fehler ' + res.status + '.');
+      const err = new Error(t('Google Drive meldet Fehler {n}.',{n:res.status}));
       err.status = res.status; err.detail = text.slice(0, 300);
       throw err;
     }
@@ -103,12 +103,12 @@ const GDrive = (() => {
     if(!remote) return null;
     const data = await call('GET', `${API}/files/${remote.id}?alt=media`, token);
     const p = typeof data === 'string' ? JSON.parse(data) : data;
-    if(!p || p.app !== 'dosia' || !p.db || !Array.isArray(p.db.meds)) throw new Error('Die Sicherung in Google Drive ist ungültig.');
+    if(!p || p.app !== 'dosia' || !p.db || !Array.isArray(p.db.meds)) throw new Error(t('Die Sicherung in Google Drive ist ungültig.'));
     return { payload: p, modified: remote.modifiedTime };
   }
 
   function fmt(ts){
-    return new Date(ts).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return new Date(ts).toLocaleString(I18N.locale, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
   }
 
   async function connect(){
@@ -126,8 +126,8 @@ const GDrive = (() => {
     if(found){
       const when = fmt(found.payload.savedAt || Date.parse(found.modified));
       const msg = dbIsEmpty(DB)
-        ? `In Google Drive gibt es eine Sicherung vom ${when}.\n\nJetzt wiederherstellen?`
-        : `In Google Drive gibt es bereits eine Sicherung vom ${when}.\n\nOK = Sicherung wiederherstellen (ersetzt die Daten auf diesem Gerät)\nAbbrechen = Daten dieses Geräts behalten – sie ersetzen dann die Sicherung.`;
+        ? t('In Google Drive gibt es eine Sicherung vom {d}.\n\nJetzt wiederherstellen?',{d:when})
+        : t('In Google Drive gibt es bereits eine Sicherung vom {d}.\n\nOK = Sicherung wiederherstellen (ersetzt die Daten auf diesem Gerät)\nAbbrechen = Daten dieses Geräts behalten – sie ersetzen dann die Sicherung.',{d:when});
       if(confirm(msg)){
         replaceDB(found.payload.db, { skipBackup:true });
         state.lastBackup = found.payload.savedAt || Date.now();
@@ -142,9 +142,9 @@ const GDrive = (() => {
   async function restore(){
     const token = await getToken(true);
     const found = await fetchBackup(token);
-    if(!found) throw new Error('In Google Drive wurde noch keine Sicherung gefunden.');
+    if(!found) throw new Error(t('In Google Drive wurde noch keine Sicherung gefunden.'));
     const when = fmt(found.payload.savedAt || Date.parse(found.modified));
-    if(!confirm(`Sicherung vom ${when} wiederherstellen?\n\nDie Daten auf diesem Gerät werden dabei ersetzt.`)) return false;
+    if(!confirm(t('Sicherung vom {d} wiederherstellen?\n\nDie Daten auf diesem Gerät werden dabei ersetzt.',{d:when}))) return false;
     replaceDB(found.payload.db, { skipBackup:true });
     return true;
   }
@@ -178,29 +178,29 @@ const GDrive = (() => {
 
   /* ---------------- Oberflaeche (Karte unter "Mehr") ---------------- */
   function cardHtml(){
-    let h = `<div class="title">Sicherung in Google Drive</div>`;
+    let h = `<div class="title">${t('Sicherung in Google Drive')}</div>`;
     if(!isApp()){
-      return h + `<div class="sub">Nur in der Android-App verfügbar. In der Browser-Version kannst du unten ein Backup exportieren.</div>`;
+      return h + `<div class="sub">${t('Nur in der Android-App verfügbar. In der Browser-Version kannst du unten ein Backup exportieren.')}</div>`;
     }
     if(!plugin()){
-      return h + `<div class="sub">In dieser App-Version nicht verfügbar.</div>`;
+      return h + `<div class="sub">${t('In dieser App-Version nicht verfügbar.')}</div>`;
     }
     if(!state.connected){
-      return h + `<div class="sub">Sichert deine Dosia-Daten in einem versteckten App-Ordner in <b>deinem</b> Google Drive. Dosia sieht dort nur die eigene Sicherung, nicht deine anderen Dateien. So kannst du nach einem Handywechsel alles wiederherstellen.</div>
+      return h + `<div class="sub">${t('Sichert deine Dosia-Daten in einem versteckten App-Ordner in <b>deinem</b> Google Drive. Dosia sieht dort nur die eigene Sicherung, nicht deine anderen Dateien. So kannst du nach einem Handywechsel alles wiederherstellen.')}</div>
         ${state.error ? `<div class="notice">${esc(state.error)}</div>` : ''}
-        <div class="actions" style="margin-top:10px"><button class="btn-primary btn-sm" ${busy?'disabled':''} onclick="gdAct.connect()">${busy?'Bitte warten …':'Mit Google verbinden'}</button></div>`;
+        <div class="actions" style="margin-top:10px"><button class="btn-primary btn-sm" ${busy?'disabled':''} onclick="gdAct.connect()">${busy?t('Bitte warten …'):t('Mit Google verbinden')}</button></div>`;
     }
-    return h + `<div class="sub">Verbunden${state.email ? ' mit <b>'+esc(state.email)+'</b>' : ''}.<br>
-        Letzte Sicherung: ${state.lastBackup ? fmt(state.lastBackup) : 'noch keine'}</div>
+    return h + `<div class="sub">${state.email ? t('Verbunden mit {e}.',{e:'<b>'+esc(state.email)+'</b>'}) : t('Verbunden.')}<br>
+        ${t('Letzte Sicherung:')} ${state.lastBackup ? fmt(state.lastBackup) : t('noch keine')}</div>
       ${state.error ? `<div class="notice">${esc(state.error)}</div>` : ''}
       <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-        <input type="checkbox" ${state.auto?'checked':''} onchange="gdAct.toggleAuto(this.checked)"> Nach Änderungen automatisch sichern</label>
+        <input type="checkbox" ${state.auto?'checked':''} onchange="gdAct.toggleAuto(this.checked)"> ${t('Nach Änderungen automatisch sichern')}</label>
       <div class="actions" style="margin-top:10px">
-        <button class="btn-primary btn-sm" ${busy?'disabled':''} onclick="gdAct.backup()">${busy?'Bitte warten …':'Jetzt sichern'}</button>
-        <button class="btn-ghost btn-sm" ${busy?'disabled':''} onclick="gdAct.restore()">Wiederherstellen</button>
-        <button class="btn-danger btn-sm" ${busy?'disabled':''} onclick="gdAct.disconnect()">Trennen</button>
+        <button class="btn-primary btn-sm" ${busy?'disabled':''} onclick="gdAct.backup()">${busy?t('Bitte warten …'):t('Jetzt sichern')}</button>
+        <button class="btn-ghost btn-sm" ${busy?'disabled':''} onclick="gdAct.restore()">${t('Wiederherstellen')}</button>
+        <button class="btn-danger btn-sm" ${busy?'disabled':''} onclick="gdAct.disconnect()">${t('Trennen')}</button>
       </div>
-      <div class="hint">Sicherung, kein Live-Abgleich: Nutzt du Dosia auf zwei Geräten, gilt jeweils die zuletzt gespeicherte Sicherung.</div>`;
+      <div class="hint">${t('Sicherung, kein Live-Abgleich: Nutzt du Dosia auf zwei Geräten, gilt jeweils die zuletzt gespeicherte Sicherung.')}</div>`;
   }
 
   async function run(fn, okMsg){
@@ -218,13 +218,13 @@ const GDrive = (() => {
   }
 
   window.gdAct = {
-    connect: () => run(connect, r => r === 'restored' ? 'Sicherung wiederhergestellt.'
-                                   : r === 'kept' ? 'Verbunden. Die vorhandene Sicherung in Google Drive bleibt unverändert, bis du hier Daten einträgst.'
-                                   : 'Verbunden. Deine Daten wurden in Google Drive gesichert.'),
+    connect: () => run(connect, r => r === 'restored' ? t('Sicherung wiederhergestellt.')
+                                   : r === 'kept' ? t('Verbunden. Die vorhandene Sicherung in Google Drive bleibt unverändert, bis du hier Daten einträgst.')
+                                   : t('Verbunden. Deine Daten wurden in Google Drive gesichert.')),
     backup:  () => run(async () => (await backupNow({ interactive:true })),
-                       r => r && r.skipped ? 'Es wurde nichts gesichert: Die App enthält noch keine Daten und eine vorhandene Sicherung soll nicht überschrieben werden.' : 'In Google Drive gesichert.'),
-    restore: () => run(restore, r => r ? 'Sicherung wiederhergestellt.' : ''),
-    disconnect: () => { if(confirm('Verbindung zu Google trennen?\n\nDie letzte Sicherung bleibt in deinem Google Drive erhalten.')) run(disconnect, 'Verbindung getrennt.'); },
+                       r => r && r.skipped ? t('Es wurde nichts gesichert: Die App enthält noch keine Daten und eine vorhandene Sicherung soll nicht überschrieben werden.') : t('In Google Drive gesichert.')),
+    restore: () => run(restore, r => r ? t('Sicherung wiederhergestellt.') : ''),
+    disconnect: () => { if(confirm(t('Verbindung zu Google trennen?\n\nDie letzte Sicherung bleibt in deinem Google Drive erhalten.'))) run(disconnect, t('Verbindung getrennt.')); },
     toggleAuto: v => { state.auto = !!v; saveState(); if(v) scheduleAuto(); },
   };
 
