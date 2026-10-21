@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.1 – 21.10.2026
+- Klarere Anzeige auf „Heute": Uhrzeiten, bei denen alles genommen ist, zeigen „✓ erledigt" statt „fällig"; offene zeigen „offen" (bei mehreren Medikamenten z. B. „offen · 1 von 2")
+
 ## 1.6.0 – 20.10.2026
 - **Wecker-Modus** für wichtige Medikamente: Die Erinnerung klingelt bildschirmfüllend mit Wecker-Ton – auch bei gesperrtem Handy –, bis du „Genommen" oder „Später" tippst (pro Medikament einschaltbar)
 - **Zuverlässigkeits-Check** unter „Mehr": prüft Benachrichtigungen, exakte Wecker, Akku-Optimierung und mehr, mit Knopf direkt zur passenden Einstellung und Test-Erinnerung; Hinweis auf „Heute", wenn Erinnerungen gefährdet sind

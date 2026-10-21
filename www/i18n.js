@@ -30,7 +30,7 @@ const I18N = (() => {
     'Seit über 2 Std. offen':'Open for more than 2 hours', 'Notfall-Kontakt:':'Emergency contact:', '📞 Anrufen':'📞 Call', '💬 SMS':'💬 Text',
     'Für heute sind keine Einnahmen geplant.':'No doses planned for today.', 'Lege unter „Medikamente" etwas an.':'Add something under “Medication”.',
     'Fortschritt heute':'Progress today', '{a} von {b} genommen':'{a} of {b} taken',
-    'fällig':'due', 'geplant':'planned', 'übersprungen':'skipped', 'genommen':'taken', 'Genommen':'Taken', 'Überspringen':'Skip',
+    'fällig':'due', 'geplant':'planned', 'erledigt':'done', 'offen':'open', '{a} von {b}':'{a} of {b}', 'übersprungen':'skipped', 'genommen':'taken', 'Genommen':'Taken', 'Überspringen':'Skip',
     // Vorrat
     'heute leer':'empty today', 'reicht ~1 Tag':'lasts ~1 day', 'reicht ~{n} Tage':'lasts ~{n} days',
     // Medikamente

@@ -332,8 +332,14 @@ function renderToday(){
 
   for(const time of Object.keys(groups).sort()){
     html += `<div class="card"><div class="row" style="margin-bottom:4px"><div class="time">${time}</div>`;
-    const overdue = time < nowHM;
-    html += `<div class="grow"></div>${overdue?`<span class="tag warn">${t('fällig')}</span>`:`<span class="tag">${t('geplant')}</span>`}</div>`;
+    // Status der Uhrzeit: erledigt (alles abgehakt/übersprungen), offen seit … (überfällig) oder geplant
+    const states = groups[time].map(d=>intakeState(key,d.medId,d.time)?.status);
+    const openCount = states.filter(s=>!s).length;
+    let tag;
+    if(!openCount) tag = states.every(s=>s==='taken') ? `<span class="tag ok">✓ ${t('erledigt')}</span>` : `<span class="tag">${t('erledigt')}</span>`;
+    else if(time < nowHM) tag = `<span class="tag warn">${t('offen')}${openCount<states.length?' · '+t('{a} von {b}',{a:openCount,b:states.length}):''}</span>`;
+    else tag = `<span class="tag">${t('geplant')}</span>`;
+    html += `<div class="grow"></div>${tag}</div>`;
     for(const d of groups[time]){
       const st=intakeState(key,d.medId,d.time);
       const taken=st?.status==='taken', skip=st?.status==='skipped';

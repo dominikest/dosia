@@ -1,5 +1,8 @@
 # Changelog (English)
 
+## 1.6.1 – 21.10.2026
+- Clearer “Today” view: times where everything was taken show “✓ done” instead of “due”; open ones show “open” (with several medications e.g. “open · 1 of 2”)
+
 ## 1.6.0 – 20.10.2026
 - **Alarm mode** for important medication: the reminder rings full-screen with an alarm sound – even on a locked phone – until you tap “Taken” or “Later” (can be turned on per medication)
 - **Reliability check** under “More”: checks notifications, exact alarms, battery optimisation and more, with a button straight to the right setting and a test reminder; a hint on “Today” if reminders are at risk
