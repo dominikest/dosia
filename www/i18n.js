@@ -167,7 +167,10 @@ const I18N = (() => {
     'Erneut prüfen':'Check again', 'Backup exportieren':'Export backup', 'Bereits geplante Erinnerungen laufen vorerst weiter.':'Reminders that are already scheduled keep running for now.',
     'Bitte aktualisieren':'Please update', 'Dosia {v} funktioniert nur noch bis <b>{d}</b>.':'Dosia {v} only works until <b>{d}</b>.', 'Neu: {v}.':'New: {v}.',
     'Update verfügbar: Dosia {v}':'Update available: Dosia {v}', 'Installiert: {v}':'Installed: {v}', 'App-Updates':'App updates', 'Neueste: {v}':'Latest: {v}', 'geprüft':'checked',
-    'Auf „Heute" auf neue Versionen hinweisen':'Show new versions on “Today”', 'Auf {v} aktualisieren':'Update to {v}', 'Nach Updates suchen':'Check for updates',
+    'Auf „Heute" auf neue Versionen hinweisen':'Show new versions on “Today”',
+    'Anonym mitzählen, wie viele Dosia nutzen':'Anonymously count how many people use Dosia',
+    'Bei der Update-Suche wird höchstens einmal am Tag „heute aktiv" mitgeschickt – ohne Geräte-Kennung oder persönliche Daten.':
+      'When checking for updates, “active today” is sent at most once a day – without any device ID or personal data.', 'Auf {v} aktualisieren':'Update to {v}', 'Nach Updates suchen':'Check for updates',
     'Dosia {v} ist verfügbar.':'Dosia {v} is available.', 'Du hast die neueste Version ({v}).':'You have the latest version ({v}).',
     'Keine Verbindung zum Update-Server. Bitte später noch einmal versuchen.':'No connection to the update server. Please try again later.',
     // Google Drive

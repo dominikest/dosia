@@ -53,9 +53,26 @@ const Updater = (() => {
     if(document.visibilityState==='visible' && due(CHECK_ON_RESUME_MS)) check().then(rerender).catch(()=>{});
   });
 
+  // Anonyme Nutzungszählung: Aus dem Zeitpunkt der letzten Prüfung (wird für die Update-Suche ohnehin gemerkt)
+  // ergibt sich, ob dies die erste Prüfung heute / diese Woche / diesen Monat ist. Der Server zählt nur hoch –
+  // keine Geräte-ID, nichts Zusätzliches gespeichert. Abschaltbar unter "Mehr → App-Updates".
+  const dayKey = d => todayKey(d);
+  const weekKey = d => { const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return todayKey(x); };   // Montag der Woche
+  const monthKey = d => todayKey(d).slice(0,7);
+  function usageFlags(){
+    if(state.stats === false) return '';
+    const now = new Date(), last = state.lastCheck ? new Date(state.lastCheck) : null;
+    let f = '';
+    if(!last) f += '&n=1';                                         // erste Prüfung überhaupt (neu installiert)
+    if(!last || dayKey(last)   !== dayKey(now))   f += '&d=1';
+    if(!last || weekKey(last)  !== weekKey(now))  f += '&w=1';
+    if(!last || monthKey(last) !== monthKey(now)) f += '&m=1';
+    return f;
+  }
+
   async function check(){
     const base = window.DOSIA_UPDATE_URL;
-    const res = await fetch(base + (base.includes('?')?'&':'?') + 'v=' + encodeURIComponent(current()) + '&lang=' + I18N.lang + '&t=' + Date.now(),
+    const res = await fetch(base + (base.includes('?')?'&':'?') + 'v=' + encodeURIComponent(current()) + '&lang=' + I18N.lang + usageFlags() + '&t=' + Date.now(),
                             { headers:{ 'Accept':'application/json' } });
     if(!res.ok) throw new Error('Update-Server antwortet mit ' + res.status);
     const j = await res.json();
@@ -180,6 +197,9 @@ const Updater = (() => {
       ${upd && l.notes.length?`<ul class="sub" style="margin:8px 0 0;padding-left:20px">${notesHtml(l.notes,6)}</ul>`:''}
       <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
         <input type="checkbox" ${state.auto?'checked':''} onchange="updAct.toggleAuto(this.checked)"> ${t('Auf „Heute" auf neue Versionen hinweisen')}</label>
+      <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <input type="checkbox" ${state.stats!==false?'checked':''} onchange="updAct.toggleStats(this.checked)"> ${t('Anonym mitzählen, wie viele Dosia nutzen')}</label>
+      <div class="sub">${t('Bei der Update-Suche wird höchstens einmal am Tag „heute aktiv" mitgeschickt – ohne Geräte-Kennung oder persönliche Daten.')}</div>
       <div class="actions" style="margin-top:10px">
         ${upd?`<button class="btn-primary btn-sm" onclick="updAct.install()">${t('Auf {v} aktualisieren',{v:esc(l.version)})}</button>`:''}
         <button class="btn-ghost btn-sm" onclick="updAct.checkNow()">${t('Nach Updates suchen')}</button>
@@ -190,6 +210,7 @@ const Updater = (() => {
     install: () => install(),
     later: () => { state.dismissed = state.latest ? state.latest.version : ''; save(); rerender(); },
     toggleAuto: v => { state.auto = !!v; save(); rerender(); },
+    toggleStats: v => { state.stats = !!v; save(); },
     checkNow: async () => {
       try{
         const neu = await check();

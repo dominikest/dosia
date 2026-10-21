@@ -1,5 +1,8 @@
 # Changelog (English)
 
+## 1.6.2 – 21.10.2026
+- Anonymous usage count: when checking for updates, “active today” is sent at most once a day – without any device ID or personal data; can be turned off under “More → App updates”
+
 ## 1.6.1 – 21.10.2026
 - Clearer “Today” view: times where everything was taken show “✓ done” instead of “due”; open ones show “open” (with several medications e.g. “open · 1 of 2”)
 

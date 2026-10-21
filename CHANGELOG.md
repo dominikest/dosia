@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.2 – 21.10.2026
+- Anonyme Nutzungszählung: Bei der Update-Suche wird höchstens einmal am Tag „heute aktiv" mitgeschickt – ohne Geräte-Kennung oder persönliche Daten; abschaltbar unter „Mehr → App-Updates"
+
 ## 1.6.1 – 21.10.2026
 - Klarere Anzeige auf „Heute": Uhrzeiten, bei denen alles genommen ist, zeigen „✓ erledigt" statt „fällig"; offene zeigen „offen" (bei mehreren Medikamenten z. B. „offen · 1 von 2")
 
