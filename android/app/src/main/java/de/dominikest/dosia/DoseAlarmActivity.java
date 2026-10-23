@@ -145,8 +145,7 @@ public class DoseAlarmActivity extends Activity {
     public void onBackPressed() {
         // Zurück = Ton aus, Erinnerung bleibt still in der Leiste (wie nach Ablauf der Klingelzeit)
         DoseAlarmReceiver.quiet(this, alarmId);
-        android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
-        am.cancel(DoseAlarmStore.quietPi(this, alarmId));
+        DoseAlarmStore.cancelQuiet(this, alarmId);
         finishAndRemoveTask();
     }
 

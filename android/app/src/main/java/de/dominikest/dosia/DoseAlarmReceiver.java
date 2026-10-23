@@ -88,8 +88,7 @@ public class DoseAlarmReceiver extends BroadcastReceiver {
     /** "Genommen" oder "Später" – vom Wecker-Bildschirm oder aus der Benachrichtigung. */
     static void handleUser(Context c, JSONObject o, String actionId) {
         int id = o.optInt("id");
-        AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
-        am.cancel(DoseAlarmStore.quietPi(c, id));
+        DoseAlarmStore.cancelQuiet(c, id);
         nm(c).cancel(id);
         finishScreen(c, id);
         if ("take".equals(actionId)) {

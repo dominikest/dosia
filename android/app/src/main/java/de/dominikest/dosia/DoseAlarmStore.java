@@ -148,18 +148,44 @@ final class DoseAlarmStore {
         int id = o.optInt("id");
         long at = o.optLong("at");
         PendingIntent pi = firePi(c, id);
-        if (canExact(c)) {
-            am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, showPi(c)), pi);
-        } else {
-            // Ohne Erlaubnis für exakte Alarme: so genau wie möglich (kann sich etwas verzögern)
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+        try {
+            if (canExact(c)) {
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, showPi(c)), pi);
+            } else {
+                // Ohne Erlaubnis für exakte Alarme: so genau wie möglich (kann sich etwas verzögern)
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+            }
+        } catch (RuntimeException e) {
+            // z. B. Android-Grenze von 500 Weckern erreicht – diesen einen auslassen statt die App abstürzen zu lassen
+            pi.cancel();
         }
     }
 
+    /**
+     * Vorhandenen Verweis (PendingIntent) holen, OHNE einen neuen anzulegen.
+     * Wichtig: Jedes getBroadcast() ohne FLAG_NO_CREATE legt bei Android einen Eintrag an; bei Tausenden
+     * (Absagen/Aufräumen bei jeder Neuplanung) bricht Android die App ab – bis "Stopp erzwingen".
+     */
+    private static PendingIntent existing(Context c, String action, int requestCode) {
+        Intent i = new Intent(c, DoseAlarmReceiver.class).setAction(action);
+        return PendingIntent.getBroadcast(c, requestCode, i, PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private static void cancelPi(Context c, PendingIntent pi) {
+        if (pi == null) return;
+        ((AlarmManager) c.getSystemService(Context.ALARM_SERVICE)).cancel(pi);
+        pi.cancel();                                         // Eintrag bei Android freigeben
+    }
+
+    /** Geplanten Wecker und ggf. sein "Verstummen" absagen. */
     static void cancelOne(Context c, int id) {
-        AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
-        am.cancel(firePi(c, id));
-        am.cancel(quietPi(c, id));
+        cancelPi(c, existing(c, ACTION_FIRE, id));
+        cancelQuiet(c, id);
+    }
+
+    /** Nur das automatische Verstummen eines klingelnden Weckers absagen. */
+    static void cancelQuiet(Context c, int id) {
+        cancelPi(c, existing(c, ACTION_QUIET, id ^ 0x40000000));
     }
 
     /** Ersetzt alle geplanten Wecker durch die neue Liste. */

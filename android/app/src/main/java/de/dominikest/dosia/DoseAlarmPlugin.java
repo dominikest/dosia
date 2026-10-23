@@ -75,17 +75,25 @@ public class DoseAlarmPlugin extends Plugin {
     /** Angezeigte Wecker-Benachrichtigungen entfernen (z. B. Dosis in der App abgehakt). */
     @PluginMethod
     public void dismiss(PluginCall call) {
-        JSArray ids = call.getArray("ids", new JSArray());
-        NotificationManager nm = DoseAlarmReceiver.nm(ctx());
-        AlarmManager am = (AlarmManager) ctx().getSystemService(Context.ALARM_SERVICE);
-        for (int i = 0; i < ids.length(); i++) {
-            int id = ids.optInt(i);
-            if (id == 0) continue;
-            nm.cancel(id);
-            am.cancel(DoseAlarmStore.quietPi(ctx(), id));
-            DoseAlarmReceiver.finishScreen(ctx(), id);
+        try {
+            JSArray ids = call.getArray("ids", new JSArray());
+            java.util.Set<Integer> wanted = new java.util.HashSet<>();
+            for (int i = 0; i < ids.length(); i++) wanted.add(ids.optInt(i));
+            // Nur Wecker anfassen, die gerade wirklich angezeigt werden – nicht für jede Nummer neue Android-Einträge anlegen
+            NotificationManager nm = DoseAlarmReceiver.nm(ctx());
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                for (android.service.notification.StatusBarNotification sbn : nm.getActiveNotifications()) {
+                    int id = sbn.getId();
+                    if (!wanted.contains(id) || sbn.getNotification().extras.getString("dosiaAlarm") == null) continue;
+                    nm.cancel(id);
+                    DoseAlarmStore.cancelQuiet(ctx(), id);
+                    DoseAlarmReceiver.finishScreen(ctx(), id);
+                }
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("dismiss: " + e.getMessage());
         }
-        call.resolve();
     }
 
     /** Verbuchte Aktionen ("Genommen"/"Später" ohne geöffnete App) abholen – danach ist die Liste leer. */

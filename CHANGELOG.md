@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.3 – 23.10.2026
+- Behoben: Mit Wecker-Modus und häufigem Nachhaken konnte die App nach dem Speichern abstürzen und sich erst nach „Stopp erzwingen" wieder öffnen lassen
+
 ## 1.6.2 – 21.10.2026
 - Anonyme Nutzungszählung: Bei der Update-Suche wird höchstens einmal am Tag „heute aktiv" mitgeschickt – ohne Geräte-Kennung oder persönliche Daten; abschaltbar unter „Mehr → App-Updates"
 

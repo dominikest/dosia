@@ -1,5 +1,8 @@
 # Changelog (English)
 
+## 1.6.3 – 23.10.2026
+- Fixed: with alarm mode and frequent follow-ups the app could crash after saving and only reopen after “Force stop”
+
 ## 1.6.2 – 21.10.2026
 - Anonymous usage count: when checking for updates, “active today” is sent at most once a day – without any device ID or personal data; can be turned off under “More → App updates”
 
