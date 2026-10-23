@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.5 – 23.10.2026
+- **„Mehr" neu aufgeräumt:** klare Abschnitte (Erinnerungen, Personen & Tiere, Notfall-Kontakt, Sicherung, App, Daten löschen), Schalter statt Häkchen und zu jeder Option eine Erklärung, was „An" und „Aus" genau bewirkt
+- Nachhaken mit Live-Beispiel („Einnahme um 08:00 → weitere Erinnerungen um 08:15, 08:30 …")
+- Zuverlässigkeits-Check kompakter: Status auf einen Blick, Einzelheiten aufklappbar
+
 ## 1.6.4 – 23.10.2026
 - Behoben: Beim Ausschalten des Wecker-Modus konnte die App abstürzen, weil kurzzeitig mehr als 500 Erinnerungen bei Android angemeldet waren (Androids Obergrenze). Erinnerungen werden jetzt in der richtigen Reihenfolge neu geplant, mit deutlich mehr Abstand zur Grenze
 

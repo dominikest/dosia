@@ -1,5 +1,10 @@
 # Changelog (English)
 
+## 1.6.5 – 23.10.2026
+- **“More” reorganised:** clear sections (Reminders, People & pets, Emergency contact, Backup, App, Delete data), switches instead of checkboxes and an explanation for every option of exactly what “On” and “Off” do
+- Follow-ups with a live example (“dose at 08:00 → further reminders at 08:15, 08:30 …”)
+- More compact reliability check: status at a glance, details expandable
+
 ## 1.6.4 – 23.10.2026
 - Fixed: turning off alarm mode could crash the app because more than 500 reminders were briefly registered with Android (Android’s limit). Reminders are now rescheduled in the right order, with a much larger margin below the limit
 

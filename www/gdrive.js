@@ -193,14 +193,15 @@ const GDrive = (() => {
     return h + `<div class="sub">${state.email ? t('Verbunden mit {e}.',{e:'<b>'+esc(state.email)+'</b>'}) : t('Verbunden.')}<br>
         ${t('Letzte Sicherung:')} ${state.lastBackup ? fmt(state.lastBackup) : t('noch keine')}</div>
       ${state.error ? `<div class="notice">${esc(state.error)}</div>` : ''}
-      <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-        <input type="checkbox" ${state.auto?'checked':''} onchange="gdAct.toggleAuto(this.checked)"> ${t('Nach Änderungen automatisch sichern')}</label>
+      <div class="set" style="margin-top:6px"><div class="txt"><div class="name">${t('Automatisch sichern')}</div>
+        <div class="desc">${t('<b>An:</b> Wenige Sekunden nach jeder Änderung und mindestens einmal am Tag wird die Sicherung in Google Drive aktualisiert. <b>Aus:</b> nur, wenn du auf „Jetzt sichern“ tippst.')}</div></div>
+        <label class="sw"><input type="checkbox" ${state.auto?'checked':''} onchange="gdAct.toggleAuto(this.checked)"><span></span></label></div>
       <div class="actions" style="margin-top:10px">
         <button class="btn-primary btn-sm" ${busy?'disabled':''} onclick="gdAct.backup()">${busy?t('Bitte warten …'):t('Jetzt sichern')}</button>
         <button class="btn-ghost btn-sm" ${busy?'disabled':''} onclick="gdAct.restore()">${t('Wiederherstellen')}</button>
         <button class="btn-danger btn-sm" ${busy?'disabled':''} onclick="gdAct.disconnect()">${t('Trennen')}</button>
       </div>
-      <div class="hint">${t('Sicherung, kein Live-Abgleich: Nutzt du Dosia auf zwei Geräten, gilt jeweils die zuletzt gespeicherte Sicherung.')}</div>`;
+      <div class="hint">${t('<b>Wiederherstellen</b> ersetzt die Daten auf diesem Handy durch die Sicherung (z. B. nach einem Handywechsel). <b>Trennen</b> beendet die Verbindung, die Sicherung bleibt in deinem Google Drive. Es ist eine Sicherung, kein Live-Abgleich zwischen zwei Handys.')}</div>`;
   }
 
   async function run(fn, okMsg){

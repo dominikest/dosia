@@ -122,6 +122,28 @@
   .notice{font-size:12.5px; border-left:3px solid var(--warn); padding:8px 12px; background:rgba(199,121,26,.08); border-radius:0 8px 8px 0; margin:8px 0}
   hr.sep{border:none; border-top:1px solid var(--line); margin:14px 0}
   .link{color:var(--accent); background:none; padding:0; font-size:14px}
+
+  /* Einstellungen ("Mehr"): Zeilen mit Schalter und Erklärung */
+  h2.section.group{margin-top:22px}
+  .set{display:flex; align-items:flex-start; gap:12px; padding:12px 0; border-top:1px solid var(--line)}
+  .set:first-of-type{border-top:none; padding-top:2px}
+  .set .txt{flex:1 1 auto; min-width:0}
+  .set .name{font-weight:650; font-size:15.5px}
+  .set .desc{font-size:13px; color:var(--muted); margin-top:3px}
+  .set .desc b{color:var(--text); font-weight:600}
+  .sw{position:relative; flex:0 0 auto; width:48px; height:28px; margin-top:2px}
+  .sw input{opacity:0; width:0; height:0; position:absolute}
+  .sw span{position:absolute; inset:0; border-radius:999px; background:var(--line); transition:background .15s}
+  .sw span::after{content:""; position:absolute; left:3px; top:3px; width:22px; height:22px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:transform .15s}
+  .sw input:checked + span{background:var(--brand)}
+  .sw input:checked + span::after{transform:translateX(20px)}
+  .sw input:focus-visible + span{outline:2px solid var(--accent); outline-offset:2px}
+  .sub-set{margin:4px 0 2px; padding:10px 12px; background:var(--surface-2); border-radius:12px}
+  .sub-set label{margin-top:0}
+  .example{font-size:12.5px; color:var(--muted); margin-top:8px}
+  details.more-info summary{cursor:pointer; color:var(--accent); font-size:14px; margin-top:8px; list-style:none}
+  details.more-info summary::-webkit-details-marker{display:none}
+  .status-line{display:flex; align-items:center; gap:10px; margin-top:8px; font-size:14.5px}
   .center{text-align:center}
 </style>
 </head>

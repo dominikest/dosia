@@ -263,6 +263,7 @@ function render(){
   $('#fab').style.display  = locked ? 'none' : '';
   if(locked){ view.innerHTML = Updater.blockScreen(); return; }
   ({today:renderToday, meds:renderMeds, measure:renderMeasure, history:renderHistory, more:renderMore}[currentTab])();
+  $('#fab').style.display = currentTab==='more' ? 'none' : '';   // "+" wird unter "Mehr" nicht gebraucht
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===currentTab));
 }
 
@@ -489,14 +490,61 @@ function renderHistory(){
   view.innerHTML=html;
 }
 
-/* ---- Mehr ---- */
+/* ---- Mehr (Einstellungen) ----
+   Aufbau: Erinnerungen · Personen & Tiere · Notfall-Kontakt · Sicherung · App · Daten löschen.
+   Jede Option sagt, was sie AN und was sie AUS bewirkt. */
+
+// Eine Einstellungs-Zeile mit Schalter rechts
+function setRow(id, name, desc, on, extra=''){
+  // extra (z. B. Auswahlfelder) steht in voller Breite unter der Zeile
+  return `<div class="set"><div class="txt"><div class="name">${name}</div><div class="desc">${desc}</div></div>
+    <label class="sw" title="${esc(String(name).replace(/<[^>]*>/g,''))}"><input type="checkbox" id="${id}" ${on?'checked':''}><span></span></label></div>${extra}`;
+}
+const fmtMin = n => n<60 ? t('{n} Min.',{n}) : n===60 ? t('1 Std.') : t('2 Std.');
+
+// Beispiel für das Nachhaken mit den aktuellen Einstellungen: "08:00 → 08:15, 08:30, 08:45 …"
+function followUpExample(s){
+  const step = Math.max(5, s.followUpMin||15), max = s.followUpMax||0;
+  const shown = Math.min(max || 3, 3), times = [];
+  for(let i=1; i<=shown; i++){ const m=8*60+i*step; times.push(pad(Math.floor(m/60))+':'+pad(m%60)); }
+  const more = !max || max>3 ? ' …' : '';
+  return t('Beispiel: Einnahme um 08:00, nicht abgehakt → weitere Erinnerungen um {list}{more}', {list:times.join(', '), more})
+    + ' ' + (max ? t('(insgesamt {n}×).',{n:max}) : t('(so lange, bis du abhakst).'));
+}
+
 function renderMore(){
   const s=DB.settings;
-  let html=`<h2 class="section">${t('Mehr')}</h2>` + reliabilityCard() + languageCard();
+  let html=`<h2 class="section">${t('Erinnerungen')}</h2>`;
 
-  html+=`<div class="card">
-    <div class="title">${t('Personen &amp; Tiere')}</div>
-    <div class="sub">${t('Für wen sind die Medikamente? Lege z. B. ein Familienmitglied oder dein Haustier an.')}</div>
+  // --- Erinnerungen ---
+  html+=`<div class="card">`;
+  html+=setRow('setNotify', t('Erinnerungen'),
+    isNative
+      ? t('<b>An:</b> Dosia meldet sich zu jeder Einnahmezeit mit einer Benachrichtigung – auch wenn die App geschlossen ist. <b>Aus:</b> keine Benachrichtigungen; fällige Dosen siehst du nur, wenn du Dosia öffnest.')
+      : t('<b>An:</b> Benachrichtigungen, solange Dosia im Browser geöffnet ist. Für zuverlässige Erinnerungen bei geschlossener App die Android-App nutzen.'),
+    s.notify);
+  if(isNative){
+    const fu = s.followUp && s.notify;
+    html+=setRow('setFollow', t('Erneut erinnern, bis abgehakt'),
+      t('<b>An:</b> Hast du eine Dosis nicht mit ✓ bestätigt oder übersprungen, erinnert Dosia im gewählten Abstand noch einmal. Spätestens bei der nächsten Einnahme desselben Medikaments (höchstens 24 Std.) ist Schluss. <b>Aus:</b> nur eine Erinnerung pro Einnahme.'),
+      s.followUp,
+      `<div class="sub-set" style="margin:0 0 6px;${fu?'':'opacity:.5;pointer-events:none'}">
+        <div class="grid2">
+          <div><label>${t('Abstand')}</label><select id="setFollowMin">${[5,10,15,30,60,120].map(n=>`<option value="${n}" ${s.followUpMin===n?'selected':''}>${t('alle {x}',{x:fmtMin(n)})}</option>`).join('')}</select></div>
+          <div><label>${t('Wie oft höchstens')}</label><select id="setFollowMax">${[[0,t('bis abgehakt')],[1,'1×'],[2,'2×'],[3,'3×'],[5,'5×'],[10,'10×']].map(([v,l])=>`<option value="${v}" ${(s.followUpMax||0)===v?'selected':''}>${l}</option>`).join('')}</select></div>
+        </div>
+        <div class="example">${followUpExample(s)}</div>
+      </div>`);
+    html+=`<div class="hint">${t('In jeder Benachrichtigung: <b>„✓ Genommen“</b> hakt die Dosis ab, <b>„⏰ In 10 Min.“</b> erinnert dich zehn Minuten später noch einmal. Den <b>Wecker-Modus</b> (klingelt bildschirmfüllend) schaltest du beim einzelnen Medikament ein.')}</div>`;
+  } else {
+    html+=`<div class="notice">${t('⚠ In der Browser-Version können Erinnerungen bei geschlossener Seite nicht garantiert werden. Für zuverlässige Erinnerungen die installierte App nutzen.')}</div>`;
+  }
+  html+=`</div>`;
+  html+=reliabilityCard();
+
+  // --- Personen & Tiere ---
+  html+=`<h2 class="section group">${t('Personen &amp; Tiere')}</h2><div class="card">
+    <div class="sub">${t('Verwaltest du Medikamente für mehrere – z. B. ein Kind, die Eltern oder dein Haustier –, lege hier je eine Person oder ein Tier an. Medikamente und Messwerte werden dann getrennt geführt, oben in jeder Ansicht kannst du filtern, und die Erinnerung sagt, für wen die Dosis ist.')}</div>
     ${DB.profiles.map(p=>{
       const n=DB.meds.filter(m=>!m.archived&&m.profileId===p.id).length;
       return `<div class="dose-item">
@@ -508,75 +556,57 @@ function renderMore(){
     <div class="actions" style="margin-top:10px"><button class="btn-ghost btn-sm" onclick="act.profileForm('')">${t('+ Person oder Tier hinzufügen')}</button></div>
   </div>`;
 
-  html+=`<div class="card">
-    <div class="title">${t('Erinnerungen')}</div>
-    <div class="sub">${isNative
-      ? t('Geplante Benachrichtigungen zu den Einnahmezeiten – auch bei geschlossener App.')
-      : t('Benachrichtigungen, solange Dosia geöffnet ist (Browser-Version).')}</div>
-    <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-      <input type="checkbox" id="setNotify" ${s.notify?'checked':''}> ${t('Erinnerungen aktivieren')}</label>
-    ${isNative ? `<label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-      <input type="checkbox" id="setFollow" ${s.followUp?'checked':''}> ${t('Nachhaken, solange nicht abgehakt')}</label>
-    <div class="grid2" style="${s.followUp?'':'opacity:.5'}">
-      <div><label>${t('Alle')}</label><select id="setFollowMin">${[5,10,15,30,60,120].map(n=>`<option value="${n}" ${s.followUpMin===n?'selected':''}>${n<60?t('{n} Minuten',{n}):n===60?t('1 Stunde'):t('2 Stunden')}</option>`).join('')}</select></div>
-      <div><label>${t('Wie oft')}</label><select id="setFollowMax">${[[0,t('bis abgehakt')],[1,'1×'],[2,'2×'],[3,'3×'],[5,'5×'],[10,'10×']].map(([v,t])=>`<option value="${v}" ${(s.followUpMax||0)===v?'selected':''}>${t}</option>`).join('')}</select></div>
-    </div>
-    <div class="sub">${t('Nachgehakt wird höchstens bis zur nächsten Einnahme desselben Medikaments (spätestens nach 24 Std.). In der Benachrichtigung kannst du direkt auf „✓ Genommen" oder „⏰ In 10 Min." tippen.')}</div>` : ''}
-    ${isNative
-      ? ''
-      : `<div class="notice">${t('⚠ In der Browser-Version können Erinnerungen bei geschlossener Seite nicht garantiert werden. Für zuverlässige Erinnerungen die installierte App nutzen.')}</div>`}
-  </div>`;
-
-  html+=`<div class="card">
-    <div class="title">${t('Darstellung')}</div>
-    <div class="chips" id="themeChips">
-      ${['auto','light','dark'].map(th=>`<span class="chip ${s.theme===th?'on':''}" data-theme="${th}">${t({auto:'Automatisch',light:'Hell',dark:'Dunkel'}[th])}</span>`).join('')}
-    </div>
-  </div>`;
-
-  html+=`<div class="card">
-    <div class="title">${t('Notfall-Kontakt (MedFriend)')}</div>
-    <div class="sub">${t('Nur auf diesem Gerät gespeichert. Ist eine Dosis seit über 2 Stunden offen, zeigt „Heute" den Kontakt mit Knöpfen zum Anrufen und für eine SMS.')}</div>
-    <label>${t('Name / Telefon')}</label>
+  // --- Notfall-Kontakt ---
+  html+=`<h2 class="section group">${t('Notfall-Kontakt')}</h2><div class="card">
+    <div class="sub">${t('Ist eine Dosis seit über 2 Stunden nicht abgehakt, zeigt „Heute“ diesen Kontakt mit Knöpfen zum <b>Anrufen</b> und für eine <b>SMS</b> – z. B. eine Angehörige, die nachschauen kann. Dosia schickt <b>nichts automatisch</b>; der Kontakt ist nur auf diesem Gerät gespeichert. Leer lassen, wenn du das nicht brauchst.')}</div>
+    <label>${t('Name und Telefonnummer')}</label>
     <input id="setMedfriend" value="${esc(s.medfriend||'')}" placeholder="${t('z. B. Anna · 0170 …')}">
   </div>`;
 
+  // --- Sicherung ---
+  html+=`<h2 class="section group">${t('Sicherung')}</h2>`;
   html+=`<div class="card">${GDrive.cardHtml()}</div>`;
-  html+=Updater.moreCard();
-
   html+=`<div class="card">
-    <div class="title">${t('Datensicherung')}</div>
-    <div class="sub">${t('Alle Daten liegen nur auf diesem Gerät. Sichere sie regelmäßig.')}</div>
+    <div class="title">${t('Backup-Datei')}</div>
+    <div class="sub">${t('Alle Daten liegen nur auf diesem Handy. <b>Exportieren</b> speichert sie als Datei (z. B. in deinen Downloads, per Mail oder in einer Cloud deiner Wahl). <b>Importieren</b> spielt so eine Datei wieder ein – dabei werden die aktuellen Daten in Dosia ersetzt.')}</div>
     <div class="actions" style="margin-top:10px">
       <button class="btn-primary btn-sm" onclick="act.exportData()">${t('⤓ Backup exportieren')}</button>
       <button class="btn-ghost btn-sm" onclick="act.importData()">${t('⤒ Backup importieren')}</button>
     </div>
   </div>`;
 
+  // --- App ---
+  html+=`<h2 class="section group">${t('App')}</h2>`;
+  html+=languageCard();
+  html+=Updater.moreCard();
   if(!isNative) html+=`<div class="card">
     <div class="title">${t('Installieren')}</div>
     <div class="sub">${t('Im Browser-Menü „Zum Startbildschirm hinzufügen" wählen – dann läuft Dosia wie eine App, offline.')}</div>
     <div class="actions" style="margin-top:10px"><button class="btn-ghost btn-sm" id="installBtn" style="display:none">${t('App installieren')}</button></div>
   </div>`;
-
   html+=`<div class="card">
-    <button class="btn-danger btn-sm" onclick="act.wipe()">${t('Alle Daten löschen')}</button>
+    <div class="title">${t('Über Dosia')}</div>
+    <div class="sub">Dosia ${APP_VERSION} · ${isNative?'Android-App':t('Browser')}${isNative&&!LN()?' · '+t('Benachrichtigungs-Plugin fehlt'):''}</div>
+    <div class="sub" style="margin-top:6px">${t('Dosia ersetzt keine ärztliche oder pharmazeutische Beratung. Prüfe Dosierungen und Wechselwirkungen immer mit Arzt oder Apotheke.')}</div>
+    ${window.DOSIA_PRIVACY_URL?`<div class="actions" style="margin-top:10px"><a class="btn-ghost btn-sm" style="text-decoration:none;color:var(--text);border-radius:10px;padding:7px 11px" href="${esc(window.DOSIA_PRIVACY_URL)}">${t('Datenschutzerklärung')}</a></div>`:''}
   </div>`;
 
-  html+=`<div class="hint">${t('Dosia ersetzt keine ärztliche oder pharmazeutische Beratung. Prüfe Dosierungen und Wechselwirkungen immer mit Arzt oder Apotheke.')}</div>`;
-  if(window.DOSIA_PRIVACY_URL) html+=`<div class="sub center" style="margin-top:14px"><a href="${esc(window.DOSIA_PRIVACY_URL)}" style="color:var(--accent)">${t('Datenschutzerklärung')}</a></div>`;
-  html+=`<div class="sub center" style="margin-top:14px">Dosia ${APP_VERSION} · ${isNative?'App':'Browser'}${isNative&&!LN()?' · '+t('Benachrichtigungs-Plugin fehlt'):''}</div>`;
+  // --- Daten löschen ---
+  html+=`<h2 class="section group">${t('Daten löschen')}</h2><div class="card" style="border-color:var(--danger)">
+    <div class="sub">${t('Löscht <b>alle</b> Medikamente, Einnahmen, Messwerte, Personen und Einstellungen auf diesem Handy und stoppt alle Erinnerungen. Lässt sich nicht rückgängig machen – exportiere vorher ein Backup. Eine Sicherung in Google Drive bleibt erhalten.')}</div>
+    <div class="actions" style="margin-top:10px"><button class="btn-danger btn-sm" onclick="act.wipe()">${t('Alle Daten löschen')}</button></div>
+  </div>`;
 
   view.innerHTML=html;
 
   $('#setNotify').onchange=e=>{ act.toggleNotify(e.target.checked); };
   if($('#setFollow')){
     $('#setFollow').onchange=e=>{ DB.settings.followUp=e.target.checked; saveDB(); refreshReminders(); render(); };
-    $('#setFollowMin').onchange=e=>{ DB.settings.followUpMin=+e.target.value; saveDB(); refreshReminders(); };
-    $('#setFollowMax').onchange=e=>{ DB.settings.followUpMax=+e.target.value; saveDB(); refreshReminders(); };
+    $('#setFollowMin').onchange=e=>{ DB.settings.followUpMin=+e.target.value; saveDB(); refreshReminders(); render(); };
+    $('#setFollowMax').onchange=e=>{ DB.settings.followUpMax=+e.target.value; saveDB(); refreshReminders(); render(); };
   }
   $('#setMedfriend').onchange=e=>{ DB.settings.medfriend=e.target.value.trim(); saveDB(); };
-  $('#themeChips').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ act.setTheme(c.dataset.theme); });
+  document.querySelectorAll('#themeChips .chip').forEach(c=>c.onclick=()=>{ act.setTheme(c.dataset.theme); });
   const ib=$('#installBtn'); if(deferredPrompt && ib){ ib.style.display='inline-block'; ib.onclick=()=>act.install(); }
 }
 
@@ -1290,15 +1320,19 @@ function reliabilityTodayCard(){
     </div></div>`;
 }
 
-// Karte unter "Mehr"
+// Karte unter "Mehr → Erinnerungen": kurzer Status, Details aufklappbar (bei Problemen offen)
 function reliabilityCard(){
-  let h = `<div class="card" id="relCard"><div class="title">${t('Zuverlässigkeit der Erinnerungen')}</div>`;
+  let h = `<div class="card" id="relCard"><div class="title">${t('Kommen meine Erinnerungen an?')}</div>`;
   if(!isNative || !DA()) return h + `<div class="sub">${t('Nur in der Android-App verfügbar.')}</div></div>`;
-  h += `<div class="sub">${t('Prüft die Android-Einstellungen, die Erinnerungen verhindern oder verzögern können.')}</div>`;
-  const checks = reliabilityChecks();
+  h += `<div class="sub">${t('Android und manche Hersteller (z. B. Samsung) können Erinnerungen verzögern oder unterdrücken, etwa durch Akkusparen. Dosia prüft die wichtigsten Einstellungen und führt dich bei Bedarf direkt hin.')}</div>`;
   if(!relStatus){ return h + `<div class="sub" style="margin-top:8px">${t('Bitte warten …')}</div></div>`; }
+  const checks = reliabilityChecks();
   const probs = checks.filter(c=>!c.ok && c.level!=='info');
-  h += probs.length ? '' : `<div class="notice" style="border-left-color:var(--ok);background:rgba(31,138,112,.08)">✅ ${t('Alles in Ordnung – deine Erinnerungen kommen zuverlässig an.')}</div>`;
+  const errs = probs.filter(c=>c.level==='error').length;
+  h += `<div class="status-line">${probs.length
+    ? `${errs?'❌':'⚠️'} <b>${t('{n} Einstellung(en) prüfen',{n:probs.length})}</b>`
+    : `✅ <b>${t('Alles in Ordnung')}</b>`}</div>`;
+  h += `<details class="more-info" ${probs.length?'open':''}><summary>${t('Einzelheiten anzeigen')}</summary>`;
   for(const c of checks){
     const icon = c.ok ? '✅' : c.level==='error' ? '❌' : c.level==='warn' ? '⚠️' : 'ℹ️';
     h += `<div class="dose-item" style="align-items:flex-start">
@@ -1308,20 +1342,26 @@ function reliabilityCard(){
       ${!c.ok && c.fix ? `<button class="btn-ghost btn-sm" onclick="${c.fix[1]}">${c.fix[0]}</button>` : ''}
     </div>`;
   }
-  h += `<div class="actions" style="margin-top:10px">
-      <button class="btn-ghost btn-sm" onclick="act.testReminder()">${t('Test-Erinnerung in 10 Sek.')}</button>
-      ${checks.some(c=>c.id==='fullscreen') || DB.meds.some(m=>!m.archived&&m.alarm) ? `<button class="btn-ghost btn-sm" onclick="act.testAlarm()">${t('Test-Wecker in 10 Sek.')}</button>` : ''}
-    </div>
-    <div class="hint">${t('Nach dem Ändern einer Einstellung kehre zu Dosia zurück – die Prüfung aktualisiert sich automatisch.')}</div></div>`;
+  h += `<div class="hint">${t('Nach dem Ändern einer Einstellung kehre zu Dosia zurück – die Prüfung aktualisiert sich automatisch.')}</div></details>`;
+  h += `<div class="sub" style="margin-top:12px">${t('Ausprobieren: Tippe auf einen Test, sperre das Handy und warte 10 Sekunden.')}</div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn-ghost btn-sm" onclick="act.testReminder()">${t('Test-Erinnerung')}</button>
+      <button class="btn-ghost btn-sm" onclick="act.testAlarm()">${t('Test-Wecker')}</button>
+    </div></div>`;
   return h;
 }
-
-// Sprache
+// Sprache und Darstellung
 function languageCard(){
-  const p = I18N.pref;
+  const p = I18N.pref, s = DB.settings;
   return `<div class="card"><div class="title">${t('Sprache')}${I18N.lang==='de' ? ' · Language' : ''}</div>
-    <div class="chips">${[['auto',t('Systemsprache')],['de','Deutsch'],['en','English']].map(([v,l])=>
-      `<span class="chip ${p===v?'on':''}" onclick="act.setLang('${v}')">${l}</span>`).join('')}</div></div>`;
+    <div class="sub">${t('„Wie das Handy“ richtet sich nach der Systemsprache. Die Erinnerungstexte wechseln mit.')}</div>
+    <div class="chips" style="margin-top:8px">${[['auto',t('Wie das Handy')],['de','Deutsch'],['en','English']].map(([v,l])=>
+      `<span class="chip ${p===v?'on':''}" onclick="act.setLang('${v}')">${l}</span>`).join('')}</div>
+    <div class="title" style="margin-top:16px">${t('Darstellung')}</div>
+    <div class="sub">${t('„Wie das Handy“ wechselt automatisch zwischen hell und dunkel, passend zur Einstellung deines Handys.')}</div>
+    <div class="chips" id="themeChips" style="margin-top:8px">
+      ${['auto','light','dark'].map(th=>`<span class="chip ${s.theme===th?'on':''}" data-theme="${th}">${t({auto:'Wie das Handy',light:'Hell',dark:'Dunkel'}[th])}</span>`).join('')}
+    </div></div>`;
 }
 
 /* ---- Knöpfe in der Benachrichtigung: "✓ Genommen" / "⏰ In 10 Min." ---- */

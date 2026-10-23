@@ -149,6 +149,53 @@ const I18N = (() => {
     'Nach dem Ändern einer Einstellung kehre zu Dosia zurück – die Prüfung aktualisiert sich automatisch.':'After changing a setting, return to Dosia – the check updates automatically.',
     // Sprache
     'Systemsprache':'System language',
+    // Einstellungen ("Mehr") – neu strukturiert
+    'Beispiel: Einnahme um 08:00, nicht abgehakt → weitere Erinnerungen um {list}{more}':'Example: dose at 08:00, not checked off → further reminders at {list}{more}',
+    '(insgesamt {n}×).':'({n}× in total).', '(so lange, bis du abhakst).':'(until you check it off).',
+    '<b>An:</b> Dosia meldet sich zu jeder Einnahmezeit mit einer Benachrichtigung – auch wenn die App geschlossen ist. <b>Aus:</b> keine Benachrichtigungen; fällige Dosen siehst du nur, wenn du Dosia öffnest.':
+      '<b>On:</b> Dosia sends a notification at every dose time – even when the app is closed. <b>Off:</b> no notifications; you only see due doses when you open Dosia.',
+    '<b>An:</b> Benachrichtigungen, solange Dosia im Browser geöffnet ist. Für zuverlässige Erinnerungen bei geschlossener App die Android-App nutzen.':
+      '<b>On:</b> notifications while Dosia is open in the browser. For reliable reminders when the app is closed, use the Android app.',
+    'Erneut erinnern, bis abgehakt':'Remind again until checked off',
+    '<b>An:</b> Hast du eine Dosis nicht mit ✓ bestätigt oder übersprungen, erinnert Dosia im gewählten Abstand noch einmal. Spätestens bei der nächsten Einnahme desselben Medikaments (höchstens 24 Std.) ist Schluss. <b>Aus:</b> nur eine Erinnerung pro Einnahme.':
+      '<b>On:</b> if you haven’t confirmed a dose with ✓ or skipped it, Dosia reminds you again at the chosen interval – until the next dose of the same medication at the latest (max. 24 h). <b>Off:</b> only one reminder per dose.',
+    '{n} Min.':'{n} min', '1 Std.':'1 h', '2 Std.':'2 h',
+    'Abstand':'Interval', 'alle {x}':'every {x}', 'Wie oft höchstens':'At most',
+    'In jeder Benachrichtigung: <b>„✓ Genommen“</b> hakt die Dosis ab, <b>„⏰ In 10 Min.“</b> erinnert dich zehn Minuten später noch einmal. Den <b>Wecker-Modus</b> (klingelt bildschirmfüllend) schaltest du beim einzelnen Medikament ein.':
+      'In every notification: <b>“✓ Taken”</b> checks off the dose, <b>“⏰ In 10 min”</b> reminds you again ten minutes later. <b>Alarm mode</b> (rings full-screen) is turned on per medication.',
+    'Verwaltest du Medikamente für mehrere – z. B. ein Kind, die Eltern oder dein Haustier –, lege hier je eine Person oder ein Tier an. Medikamente und Messwerte werden dann getrennt geführt, oben in jeder Ansicht kannst du filtern, und die Erinnerung sagt, für wen die Dosis ist.':
+      'If you manage medication for several people or pets – e.g. a child, your parents or your dog – add each one here. Medication and readings are then kept separately, you can filter at the top of every view, and the reminder tells you who the dose is for.',
+    'Notfall-Kontakt':'Emergency contact',
+    'Ist eine Dosis seit über 2 Stunden nicht abgehakt, zeigt „Heute“ diesen Kontakt mit Knöpfen zum <b>Anrufen</b> und für eine <b>SMS</b> – z. B. eine Angehörige, die nachschauen kann. Dosia schickt <b>nichts automatisch</b>; der Kontakt ist nur auf diesem Gerät gespeichert. Leer lassen, wenn du das nicht brauchst.':
+      'If a dose hasn’t been checked off for more than 2 hours, “Today” shows this contact with buttons to <b>call</b> or <b>text</b> – e.g. a relative who can check in. Dosia sends <b>nothing automatically</b>; the contact is stored on this device only. Leave empty if you don’t need it.',
+    'Name und Telefonnummer':'Name and phone number', 'Sicherung':'Backup', 'Backup-Datei':'Backup file',
+    'Alle Daten liegen nur auf diesem Handy. <b>Exportieren</b> speichert sie als Datei (z. B. in deinen Downloads, per Mail oder in einer Cloud deiner Wahl). <b>Importieren</b> spielt so eine Datei wieder ein – dabei werden die aktuellen Daten in Dosia ersetzt.':
+      'All data is stored on this phone only. <b>Export</b> saves it as a file (e.g. to your downloads, by email or to a cloud of your choice). <b>Import</b> restores such a file – this replaces the current data in Dosia.',
+    'Über Dosia':'About Dosia', 'Daten löschen':'Delete data',
+    'Löscht <b>alle</b> Medikamente, Einnahmen, Messwerte, Personen und Einstellungen auf diesem Handy und stoppt alle Erinnerungen. Lässt sich nicht rückgängig machen – exportiere vorher ein Backup. Eine Sicherung in Google Drive bleibt erhalten.':
+      'Deletes <b>all</b> medication, doses, readings, people and settings on this phone and stops all reminders. This cannot be undone – export a backup first. A Google Drive backup is kept.',
+    'Kommen meine Erinnerungen an?':'Will my reminders arrive?',
+    'Android und manche Hersteller (z. B. Samsung) können Erinnerungen verzögern oder unterdrücken, etwa durch Akkusparen. Dosia prüft die wichtigsten Einstellungen und führt dich bei Bedarf direkt hin.':
+      'Android and some manufacturers (e.g. Samsung) can delay or suppress reminders, for example to save battery. Dosia checks the most important settings and takes you straight there if needed.',
+    '{n} Einstellung(en) prüfen':'Check {n} setting(s)', 'Alles in Ordnung':'All good', 'Einzelheiten anzeigen':'Show details',
+    'Ausprobieren: Tippe auf einen Test, sperre das Handy und warte 10 Sekunden.':'Try it: tap a test, lock your phone and wait 10 seconds.',
+    'Test-Wecker':'Test alarm', 'Wie das Handy':'Same as phone',
+    '„Wie das Handy“ richtet sich nach der Systemsprache. Die Erinnerungstexte wechseln mit.':'“Same as phone” follows the system language. Reminder texts change too.',
+    '„Wie das Handy“ wechselt automatisch zwischen hell und dunkel, passend zur Einstellung deines Handys.':'“Same as phone” switches between light and dark automatically, matching your phone’s setting.',
+    'zuletzt geprüft {d}':'last checked {d}',
+    'Dosia sucht bei jedem Start und beim Zurückkehren in die App (höchstens stündlich) auf dosia24.de nach einer neuen Version. Installiert wird nur, wenn du auf „Aktualisieren“ tippst – deine Daten bleiben dabei erhalten.':
+      'Dosia checks dosia24.de for a new version on every start and when you return to the app (at most hourly). It only installs when you tap “Update” – your data is kept.',
+    'Jetzt nach Updates suchen':'Check for updates now', 'Hinweis auf „Heute“':'Notice on “Today”',
+    '<b>An:</b> Gibt es eine neue Version, erscheint oben auf „Heute“ eine Karte mit „Jetzt aktualisieren“. <b>Aus:</b> keine Karte – neue Versionen siehst du nur hier. Wird deine Version nicht mehr unterstützt, erscheint der Hinweis trotzdem.':
+      '<b>On:</b> when a new version is available, a card with “Update now” appears at the top of “Today”. <b>Off:</b> no card – you only see new versions here. If your version is no longer supported, the notice appears anyway.',
+    'Anonym mitzählen':'Count anonymously',
+    '<b>An:</b> Bei der Update-Suche wird höchstens einmal am Tag „heute aktiv“ mitgeschickt. So sehe ich, wie viele Dosia nutzen – ohne Geräte-Kennung, ohne Medikamente oder andere Daten. <b>Aus:</b> nichts davon; die Update-Suche funktioniert genauso.':
+      '<b>On:</b> when checking for updates, “active today” is sent at most once a day. This shows me how many people use Dosia – without any device ID, medication or other data. <b>Off:</b> none of this; update checks work the same.',
+    'Automatisch sichern':'Back up automatically',
+    '<b>An:</b> Wenige Sekunden nach jeder Änderung und mindestens einmal am Tag wird die Sicherung in Google Drive aktualisiert. <b>Aus:</b> nur, wenn du auf „Jetzt sichern“ tippst.':
+      '<b>On:</b> the Google Drive backup is updated a few seconds after every change and at least once a day. <b>Off:</b> only when you tap “Back up now”.',
+    '<b>Wiederherstellen</b> ersetzt die Daten auf diesem Handy durch die Sicherung (z. B. nach einem Handywechsel). <b>Trennen</b> beendet die Verbindung, die Sicherung bleibt in deinem Google Drive. Es ist eine Sicherung, kein Live-Abgleich zwischen zwei Handys.':
+      '<b>Restore</b> replaces the data on this phone with the backup (e.g. after switching phones). <b>Disconnect</b> ends the connection; the backup stays in your Google Drive. It’s a backup, not a live sync between two phones.',
     // Updates
     'Damit Dosia Updates installieren kann, muss Android das einmalig erlauben.\n\nTippe gleich bei „Dosia" auf „Aus dieser Quelle zulassen", kehre dann zurück und tippe erneut auf „Jetzt aktualisieren".':
       'To install updates, Android needs to allow this once for Dosia.\n\nTap “Allow from this source” for “Dosia”, then come back and tap “Update now” again.',

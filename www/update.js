@@ -188,22 +188,27 @@ const Updater = (() => {
         <button class="btn-ghost btn-sm" onclick="updAct.later()">${t('Später')}</button>
       </div></div>`;
   }
-  // Karte unter "Mehr"
+  // Karte unter "Mehr → App"
   function moreCard(){
     if(!enabled()) return '';
     const l = state.latest, upd = available();
+    const when = state.lastCheck ? new Date(state.lastCheck).toLocaleString(I18N.locale,{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+    const sw = (on, fn) => `<label class="sw"><input type="checkbox" ${on?'checked':''} onchange="${fn}(this.checked)"><span></span></label>`;
     return `<div class="card"><div class="title">${t('App-Updates')}</div>
-      <div class="sub">${t('Installiert: {v}',{v:'<b>'+esc(current())+'</b>'})}${l?' · '+t('Neueste: {v}',{v:'<b>'+esc(l.version)+'</b>'}):''}${state.lastCheck?` · ${t('geprüft')} ${new Date(state.lastCheck).toLocaleString(I18N.locale,{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`:''}</div>
+      <div class="sub">${t('Installiert: {v}',{v:'<b>'+esc(current())+'</b>'})}${l?' · '+t('Neueste: {v}',{v:'<b>'+esc(l.version)+'</b>'}):''}${when?` · ${t('zuletzt geprüft {d}',{d:when})}`:''}</div>
+      <div class="sub" style="margin-top:4px">${t('Dosia sucht bei jedem Start und beim Zurückkehren in die App (höchstens stündlich) auf dosia24.de nach einer neuen Version. Installiert wird nur, wenn du auf „Aktualisieren“ tippst – deine Daten bleiben dabei erhalten.')}</div>
       ${upd && l.notes.length?`<ul class="sub" style="margin:8px 0 0;padding-left:20px">${notesHtml(l.notes,6)}</ul>`:''}
-      <label style="display:flex;align-items:center;gap:10px;margin-top:10px">
-        <input type="checkbox" ${state.auto?'checked':''} onchange="updAct.toggleAuto(this.checked)"> ${t('Auf „Heute" auf neue Versionen hinweisen')}</label>
-      <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
-        <input type="checkbox" ${state.stats!==false?'checked':''} onchange="updAct.toggleStats(this.checked)"> ${t('Anonym mitzählen, wie viele Dosia nutzen')}</label>
-      <div class="sub">${t('Bei der Update-Suche wird höchstens einmal am Tag „heute aktiv" mitgeschickt – ohne Geräte-Kennung oder persönliche Daten.')}</div>
-      <div class="actions" style="margin-top:10px">
+      <div class="actions" style="margin:10px 0 4px">
         ${upd?`<button class="btn-primary btn-sm" onclick="updAct.install()">${t('Auf {v} aktualisieren',{v:esc(l.version)})}</button>`:''}
-        <button class="btn-ghost btn-sm" onclick="updAct.checkNow()">${t('Nach Updates suchen')}</button>
-      </div></div>`;
+        <button class="btn-ghost btn-sm" onclick="updAct.checkNow()">${t('Jetzt nach Updates suchen')}</button>
+      </div>
+      <div class="set"><div class="txt"><div class="name">${t('Hinweis auf „Heute“')}</div>
+        <div class="desc">${t('<b>An:</b> Gibt es eine neue Version, erscheint oben auf „Heute“ eine Karte mit „Jetzt aktualisieren“. <b>Aus:</b> keine Karte – neue Versionen siehst du nur hier. Wird deine Version nicht mehr unterstützt, erscheint der Hinweis trotzdem.')}</div></div>
+        ${sw(state.auto, 'updAct.toggleAuto')}</div>
+      <div class="set"><div class="txt"><div class="name">${t('Anonym mitzählen')}</div>
+        <div class="desc">${t('<b>An:</b> Bei der Update-Suche wird höchstens einmal am Tag „heute aktiv“ mitgeschickt. So sehe ich, wie viele Dosia nutzen – ohne Geräte-Kennung, ohne Medikamente oder andere Daten. <b>Aus:</b> nichts davon; die Update-Suche funktioniert genauso.')}</div></div>
+        ${sw(state.stats!==false, 'updAct.toggleStats')}</div>
+      </div>`;
   }
 
   window.updAct = {
