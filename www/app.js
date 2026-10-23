@@ -1156,6 +1156,15 @@ async function nativeReschedule(){
       }
     }catch{}
 
+    // Einmalig nach dem Update auf 1.6.4: auch "verwaiste" Erinnerungen aus einem früheren Absturz absagen,
+    // die das Benachrichtigungs-Plugin nicht mehr kennt (alle früher vergebenen Nummern)
+    try{
+      if(!localStorage.getItem(ALARM_CLEANUP_KEY)){
+        const old = Object.keys(nidmap).map(Number).filter(Boolean);
+        for(let i=0; i<old.length; i+=200) await ln.cancel({ notifications: old.slice(i, i+200).map(id=>({ id })) });
+      }
+    }catch(e){ console.warn('cleanup', e); }
+
     const pend = await ln.getPending();
     if(pend && pend.notifications && pend.notifications.length){
       await ln.cancel({ notifications: pend.notifications.map(n=>({id:n.id})) });
@@ -1191,7 +1200,7 @@ async function nativeReschedule(){
 }
 
 /* ---- Wecker-Modus ---- */
-const ALARM_CLEANUP_KEY = 'dosia.alarmcleanup.v1';
+const ALARM_CLEANUP_KEY = 'dosia.alarmcleanup.v2';
 async function scheduleAlarms(list){
   const da = DA(); if(!da) return;
   try{
