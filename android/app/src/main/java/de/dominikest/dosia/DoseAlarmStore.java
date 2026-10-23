@@ -58,7 +58,8 @@ final class DoseAlarmStore {
     static void save(Context c, List<JSONObject> list) {
         JSONArray a = new JSONArray();
         for (JSONObject o : list) a.put(o);
-        prefs(c).edit().putString(KEY_LIST, a.toString()).apply();
+        // commit() statt apply(): sofort auf den Speicher schreiben, damit die Liste auch einen Absturz übersteht
+        prefs(c).edit().putString(KEY_LIST, a.toString()).commit();
     }
 
     static JSONObject find(Context c, int id) {
@@ -191,13 +192,16 @@ final class DoseAlarmStore {
     /** Ersetzt alle geplanten Wecker durch die neue Liste. */
     static final int TEST_ID = 999000001;
 
-    static void replaceAll(Context c, List<JSONObject> fresh) {
+    static void replaceAll(Context c, List<JSONObject> fresh, int[] forget) {
         long now = System.currentTimeMillis();
         List<JSONObject> keep = new ArrayList<>();
         for (JSONObject o : load(c)) {
             if (o.optInt("id") == TEST_ID) { keep.add(o); continue; }   // Test-Wecker aus dem Check behalten
             cancelOne(c, o.optInt("id"));
         }
+        // Zusätzlich alle Nummern absagen, die die App früher vergeben hat – auch "verwaiste" Wecker,
+        // die nicht mehr in der gespeicherten Liste stehen (z. B. nach einem Absturz)
+        for (int id : forget) if (id != TEST_ID) cancelOne(c, id);
         for (JSONObject o : fresh) {
             if (o.optLong("at") <= now) continue;
             scheduleOne(c, o);

@@ -62,8 +62,11 @@ public class DoseAlarmPlugin extends Plugin {
             JSArray arr = call.getArray("alarms", new JSArray());
             List<JSONObject> list = new ArrayList<>();
             for (int i = 0; i < arr.length(); i++) list.add(arr.getJSONObject(i));
+            JSArray f = call.getArray("forget", new JSArray());
+            int[] forget = new int[f.length()];
+            for (int i = 0; i < f.length(); i++) forget[i] = f.optInt(i);
             DoseAlarmStore.ensureChannel(ctx());
-            DoseAlarmStore.replaceAll(ctx(), list);
+            DoseAlarmStore.replaceAll(ctx(), list, forget);
             JSObject r = new JSObject();
             r.put("count", DoseAlarmStore.load(ctx()).size());
             call.resolve(r);

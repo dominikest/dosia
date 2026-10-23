@@ -1191,11 +1191,18 @@ async function nativeReschedule(){
 }
 
 /* ---- Wecker-Modus ---- */
+const ALARM_CLEANUP_KEY = 'dosia.alarmcleanup.v1';
 async function scheduleAlarms(list){
   const da = DA(); if(!da) return;
   try{
-    await da.schedule({ alarms: list.map(n=>({ id:n.id, at:new Date(n.schedule.at).getTime(), title:n.title, body:n.body,
+    // forget (einmalig nach dem Update auf 1.6.4): alle früher vergebenen Nummern absagen – räumt "verwaiste" Wecker
+    // aus 1.6.0–1.6.3 auf. Danach ist die gespeicherte Liste im nativen Teil zuverlässig.
+    let forget = [];
+    try{ if(!localStorage.getItem(ALARM_CLEANUP_KEY)) forget = Object.keys(getNidMap()).map(Number); }catch{}
+    await da.schedule({ forget,
+      alarms: list.map(n=>({ id:n.id, at:new Date(n.schedule.at).getTime(), title:n.title, body:n.body,
       takeLabel:t('✓ Genommen'), snoozeLabel:t('⏰ In {n} Min.',{n:SNOOZE_MIN}), extra:n.extra })) });
+    if(forget.length || !localStorage.getItem(ALARM_CLEANUP_KEY)) localStorage.setItem(ALARM_CLEANUP_KEY, String(Date.now()));
   }catch(e){ console.warn('scheduleAlarms', e); }
 }
 
