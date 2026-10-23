@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.6.4 – 23.10.2026
+- Behoben: Beim Ausschalten des Wecker-Modus konnte die App abstürzen, weil kurzzeitig mehr als 500 Erinnerungen bei Android angemeldet waren (Androids Obergrenze). Erinnerungen werden jetzt in der richtigen Reihenfolge neu geplant, mit deutlich mehr Abstand zur Grenze
+
 ## 1.6.3 – 23.10.2026
 - Behoben: Mit Wecker-Modus und häufigem Nachhaken konnte die App nach dem Speichern abstürzen und sich erst nach „Stopp erzwingen" wieder öffnen lassen
 

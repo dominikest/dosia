@@ -932,8 +932,9 @@ const LN = () => (Cap && Cap.Plugins && Cap.Plugins.LocalNotifications) || null;
 const DA = () => (Cap && Cap.Plugins && Cap.Plugins.DoseAlarm) || null;
 const NOTIF_WINDOW = 48;   // so viele kommende Dosen im Voraus einplanen (plus je Medikament die nächste)
 const SNOOZE_MIN = 10;
-// Android erlaubt pro App höchstens 500 geplante Alarme – mit Reserve bleiben wir darunter.
-const MAX_ALARMS = 450;
+// Android erlaubt pro App höchstens 500 gleichzeitig geplante Alarme (Benachrichtigungen + Wecker-Modus zusammen).
+// Wird die Grenze überschritten, beendet Android die App. Deshalb großzügige Reserve für Verstummen, Schlummern und Test.
+const MAX_ALARMS = 350;
 const FOLLOWUP_HORIZON_MS = 24*3600*1000;   // Nachhaken endet spätestens nach 24 h (bzw. bei der nächsten Einnahme)
 let channelReady = false;
 
@@ -1175,8 +1176,10 @@ async function nativeReschedule(){
     const alarms = DA() ? notifications.filter(n=>n.alarm) : [];
     const normal = notifications.filter(n=>!alarms.includes(n));
     normal.forEach(n=>{ delete n.alarm; });
-    if(normal.length) await ln.schedule({ notifications: normal });
+    // Reihenfolge wichtig: erst die Wecker ersetzen (gibt alte frei), dann Benachrichtigungen planen –
+    // sonst sind kurz alte und neue gleichzeitig angemeldet und Androids Grenze von 500 wird überschritten.
     await scheduleAlarms(alarms);
+    if(normal.length) await ln.schedule({ notifications: normal });
 
     // 2) Zuordnung Nummer -> Dosis fortschreiben (für das Aufräumen später); Einträge älter als 3 Tage verwerfen
     const keep = todayKey(new Date(Date.now()-3*86400000));

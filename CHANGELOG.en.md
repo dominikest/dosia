@@ -1,5 +1,8 @@
 # Changelog (English)
 
+## 1.6.4 – 23.10.2026
+- Fixed: turning off alarm mode could crash the app because more than 500 reminders were briefly registered with Android (Android’s limit). Reminders are now rescheduled in the right order, with a much larger margin below the limit
+
 ## 1.6.3 – 23.10.2026
 - Fixed: with alarm mode and frequent follow-ups the app could crash after saving and only reopen after “Force stop”
 
