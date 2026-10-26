@@ -296,6 +296,18 @@ const I18N = (() => {
       'If you manage reminders for several people or pets – e.g. a child, your parents or your dog – add each one here. Items and readings are then kept separately, you can filter at the top of every view, and the reminder tells you who the dose is for.',
     'Löscht <b>alle</b> Einträge, Einnahmen, Messwerte, Personen und Einstellungen auf diesem Handy und stoppt alle Erinnerungen. Lässt sich nicht rückgängig machen – exportiere vorher ein Backup. Eine Sicherung in Google Drive bleibt erhalten.':
       'Deletes <b>all</b> entries, doses, readings, people and settings on this phone and stops all reminders. This cannot be undone – export a backup first. A Google Drive backup is kept.',
+    // 1.7.1 – Uhrzeiten schnell ausfüllen
+    'Schnell ausfüllen: mehrmals täglich oder alle X Stunden':'Quick fill: several times a day or every X hours',
+    'Wie oft am Tag?':'How often a day?', '… oder in festem Abstand':'… or at a fixed interval',
+    'alle {h} Std.':'every {h} h', 'Erste Einnahme':'First dose', 'Letzte spätestens':'Last dose by',
+    'Auch nachts (rund um die Uhr)':'Also at night (around the clock)',
+    'Tippe an, wie oft. Die Uhrzeiten werden zwischen erster und letzter Einnahme verteilt und unten eingetragen – dort kannst du jede noch einzeln ändern.':
+      'Tap how often. The times are spread between the first and last dose and filled in below – you can still change each one there.',
+    '1 Einnahme am Tag':'1 dose a day', '{n} Einnahmen am Tag':'{n} doses a day',
+    'Auch nachts – du wirst rund um die Uhr erinnert.':'Also at night – you will be reminded around the clock.',
+    'Nach {last} kommt nichts mehr, weiter geht es am nächsten Morgen um {first}.':'Nothing after {last}; it continues the next morning at {first}.',
+    'Gleichmäßig verteilt von {first} bis {last}.':'Evenly spread from {first} to {last}.',
+
   };
 
   function t(s, vars){

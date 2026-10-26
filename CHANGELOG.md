@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.1 – 26.10.2026
+- **Uhrzeiten schnell ausfüllen:** Beim Einnahmeplan mit einem Tipp 1× bis 6× täglich oder alle 2, 3, 4, 6, 8 oder 12 Stunden wählen. Die Zeiten werden zwischen deiner ersten und letzten Einnahme verteilt – z. B. 3× täglich von 08:00 bis 20:00 ergibt 08:00, 14:00 und 20:00
+- Erste und letzte Einnahme des Tages legst du selbst fest (z. B. Schluss um 20 oder 22 Uhr); Dosia merkt sich das für den nächsten Eintrag
+- „Auch nachts“ verteilt die Einnahmen rund um die Uhr – etwa für Mittel, die streng im Abstand genommen werden
+- Jede erzeugte Uhrzeit lässt sich danach wie gewohnt einzeln ändern oder löschen
+
 ## 1.7.0 – 26.10.2026
 - **Nicht nur Medikamente:** Beim Anlegen wählst du zuerst, was es ist – Medikament, Vitamin & Nahrungsergänzung, Hausmittel & Anwendung oder Sonstiges. Der Reiter heißt jetzt „Mittel"; neue Formen wie Brausetablette, Lutschtablette, Pulver, Tee oder Spray
 - **Wie lange?** Dauer mit einem Tipp: dauerhaft, 5, 7, 10, 14 Tage oder eigene Dauer, Start heute, morgen oder an einem Datum. Die Vorschau zeigt Zeitraum, Anzahl der Einnahmen und ob der Vorrat reicht

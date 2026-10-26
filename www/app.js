@@ -13,7 +13,7 @@ const defaultDB = () => ({
   intake: {},        // { "YYYY-MM-DD": { "medId|HH:MM": {status:'taken'|'skipped', ts} } }
   measures: [],      // {id,profileId,medId?,type,value,value2,unit,ts,note}
   // followUpMax: wie oft nachgehakt wird; 0 = bis abgehakt (spätestens bis zur nächsten Einnahme, max. 24 h)
-  settings: { notify:false, theme:'auto', medfriend:'', profileFilter:'all', followUp:true, followUpMin:15, followUpMax:0 }
+  settings: { notify:false, theme:'auto', medfriend:'', profileFilter:'all', followUp:true, followUpMin:15, followUpMax:0, dayStart:'08:00', dayEnd:'20:00' }
 });
 
 // Ältere Datenstände (auch aus Backups) auf das aktuelle Modell bringen
@@ -802,6 +802,21 @@ function medForm(med, opts={}){
     <div id="schedExtra"></div>
 
     <label>${t('Uhrzeiten')}</label>
+    <details class="more-info quick-times" id="quickTimes" ${isEdit?'':'open'}>
+      <summary>⚡ ${t('Schnell ausfüllen: mehrmals täglich oder alle X Stunden')}</summary>
+      <div class="quick-box">
+        <div class="muted small-label">${t('Wie oft am Tag?')}</div>
+        <div class="chips" id="qtN">${[1,2,3,4,5,6].map(n=>`<span class="chip" data-q="n${n}" onclick="act.quickTimes('n',${n})">${n}×</span>`).join('')}</div>
+        <div class="muted small-label">${t('… oder in festem Abstand')}</div>
+        <div class="chips" id="qtH">${[2,3,4,6,8,12].map(h=>`<span class="chip" data-q="h${h}" onclick="act.quickTimes('h',${h})">${t('alle {h} Std.',{h})}</span>`).join('')}</div>
+        <div class="grid2" style="margin-top:8px">
+          <div><label>${t('Erste Einnahme')}</label><input type="time" id="qtFirst" value="${DB.settings.dayStart}" onchange="act.quickBounds()"></div>
+          <div id="qtLastWrap"><label>${t('Letzte spätestens')}</label><input type="time" id="qtLast" value="${DB.settings.dayEnd}" onchange="act.quickBounds()"></div>
+        </div>
+        <label class="row" style="gap:8px;margin-top:8px;font-weight:400"><input type="checkbox" id="qtNight" style="width:auto" onchange="act.quickBounds()"> ${t('Auch nachts (rund um die Uhr)')}</label>
+        <div class="hint" id="qtHint"></div>
+      </div>
+    </details>
     <div id="timeList"></div>
     <button class="btn-ghost btn-sm" onclick="act.addTime()" style="margin-top:6px">${t('+ Uhrzeit')}</button>
 
@@ -853,9 +868,10 @@ function medForm(med, opts={}){
   tmpTimes = [...(s.times||['08:00'])];
   tmpSched = JSON.parse(JSON.stringify(s));
   initDuration(m, opts);
-  renderTimeList(); renderSchedExtra(); applyAutoStart(); renderDurSel();
+  tmpQuick = null;
+  renderTimeList(); renderSchedExtra(); applyAutoStart(); renderDurSel(); renderQuick();
 }
-let tmpTimes=[], tmpSched={}, tmpEditId='', tmpRepeatOf='';
+let tmpTimes=[], tmpSched={}, tmpEditId='', tmpRepeatOf='', tmpQuick=null;
 
 /* ---- Dauer & Start im Formular ----
    Gespeichert wird weiter nur schedule.start / schedule.end; die Chips sind nur eine bequeme Eingabe. */
@@ -959,6 +975,48 @@ function renderTimeList(){
     <input type="time" value="${t}" onchange="act.setTime(${i},this.value)" style="flex:1">
     ${tmpTimes.length>1?`<button class="btn-round btn-ghost" onclick="act.rmTime(${i})">✕</button>`:''}</div>`).join('');
 }
+/* ---- Schnell ausfüllen: n× täglich oder alle h Stunden ----
+   Erzeugt nur normale Uhrzeiten; danach ist jede einzeln änderbar. */
+const toMin = hm => { const [h,m]=String(hm||'0:0').split(':').map(Number); return (h||0)*60+(m||0); };
+const fromMin = x => { x=((Math.round(x)%1440)+1440)%1440; return pad(Math.floor(x/60))+':'+pad(x%60); };
+function quickGen(q, first, last, night){
+  const a=toMin(first); let b=toMin(last); if(b<=a) b+=1440;   // z. B. Spätschicht 14:00–02:00
+  const out=[];
+  if(night){
+    const step = q.mode==='n' ? 1440/q.v : q.v*60;
+    for(let k=0; k*step<1440-0.5; k++) out.push(a+k*step);
+  }else if(q.mode==='n'){
+    const step = q.v>1 ? (b-a)/(q.v-1) : 0;
+    for(let k=0;k<q.v;k++) out.push(Math.round((a+k*step)/5)*5);
+  }else{
+    for(let x=a; x<=b; x+=q.v*60) out.push(x);
+  }
+  return [...new Set(out.map(fromMin))].sort();
+}
+function renderQuick(){
+  const box=$('#quickTimes'); if(!box) return;
+  const sel = tmpQuick ? tmpQuick.mode+tmpQuick.v : '';
+  document.querySelectorAll('#quickTimes .chip').forEach(c=>c.classList.toggle('on', c.dataset.q===sel));
+  const night=$('#qtNight').checked;
+  $('#qtLastWrap').style.visibility = night ? 'hidden' : '';
+  const first=$('#qtFirst').value||'08:00', last=$('#qtLast').value||'20:00';
+  let h;
+  if(!tmpQuick){
+    h = t('Tippe an, wie oft. Die Uhrzeiten werden zwischen erster und letzter Einnahme verteilt und unten eingetragen – dort kannst du jede noch einzeln ändern.');
+  }else{
+    const n=tmpTimes.length;
+    h = `<b>${n===1?t('1 Einnahme am Tag'):t('{n} Einnahmen am Tag',{n})}:</b> ${tmpTimes.join(' · ')}<br>`;
+    if(night) h += t('Auch nachts – du wirst rund um die Uhr erinnert.');
+    else if(tmpQuick.mode==='h') h += t('Nach {last} kommt nichts mehr, weiter geht es am nächsten Morgen um {first}.',{first,last});
+    else h += t('Gleichmäßig verteilt von {first} bis {last}.',{first,last});
+  }
+  $('#qtHint').innerHTML=h;
+}
+function applyQuick(){
+  if(!tmpQuick) return;
+  tmpTimes = quickGen(tmpQuick, $('#qtFirst').value||'08:00', $('#qtLast').value||'20:00', $('#qtNight').checked);
+  renderTimeList(); applyAutoStart(); renderDurSel();
+}
 function renderSchedExtra(){
   const el=$('#schedExtra'); if(!el) return;
   const ty=tmpSched.type;
@@ -1050,9 +1108,16 @@ const act = {
     const fm=$('#mForm'); if(!tmpEditId && !fm.dataset.touched) fm.value = k.form;
     if(k.v==='med') $('#mMore').open = true;
   },
-  addTime(){ tmpTimes.push('12:00'); renderTimeList(); applyAutoStart(); renderDurSel(); },
-  rmTime(i){ tmpTimes.splice(i,1); renderTimeList(); applyAutoStart(); renderDurSel(); },
-  setTime(i,v){ tmpTimes[i]=v; applyAutoStart(); renderDurSel(); },
+  addTime(){ tmpTimes.push('12:00'); tmpQuick=null; renderTimeList(); applyAutoStart(); renderDurSel(); renderQuick(); },
+  rmTime(i){ tmpTimes.splice(i,1); tmpQuick=null; renderTimeList(); applyAutoStart(); renderDurSel(); renderQuick(); },
+  setTime(i,v){ tmpTimes[i]=v; tmpQuick=null; applyAutoStart(); renderDurSel(); renderQuick(); },
+  quickTimes(mode,v){ tmpQuick={mode,v}; applyQuick(); renderQuick(); },
+  quickBounds(){
+    const f=$('#qtFirst').value, l=$('#qtLast').value;
+    // eigene Tageszeiten merken, damit sie beim nächsten Eintrag schon passen
+    if(f) DB.settings.dayStart=f; if(l) DB.settings.dayEnd=l; saveDB({skipBackup:true});
+    applyQuick(); renderQuick();
+  },
   toggleWd(d,el){ const w=tmpSched.weekdays=tmpSched.weekdays||[]; const idx=w.indexOf(d); if(idx<0)w.push(d); else w.splice(idx,1); el.classList.toggle('on'); renderDurPreview(); },
   setDur(v){
     if(v==='forever') tmpDur={kind:'forever', n:0, date:''};

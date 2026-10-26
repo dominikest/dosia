@@ -1,5 +1,11 @@
 # Changelog (English)
 
+## 1.7.1 – 26.10.2026
+- **Quick fill for times:** pick 1 to 6 times a day or every 2, 3, 4, 6, 8 or 12 hours with one tap. The times are spread between your first and last dose – e.g. 3 times a day from 08:00 to 20:00 gives 08:00, 14:00 and 20:00
+- You set the first and last dose of the day yourself (e.g. stop at 8 or 10 pm); Dosia remembers it for the next entry
+- “Also at night” spreads the doses around the clock – e.g. for items that must be taken at strict intervals
+- Each generated time can still be changed or removed individually
+
 ## 1.7.0 – 26.10.2026
 - **Not just medication:** when adding, you first pick what it is – medication, vitamin & supplement, home remedy & routine or other. The tab is now called “Meds & more”; new forms such as effervescent tablet, lozenge, powder, tea or spray
 - **How long?** Set the duration with one tap: ongoing, 5, 7, 10, 14 days or a custom duration, starting today, tomorrow or on a date. The preview shows the period, the number of doses and whether the supply lasts
