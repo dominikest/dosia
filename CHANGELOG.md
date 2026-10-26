@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 – 26.10.2026
+- **Nicht nur Medikamente:** Beim Anlegen wählst du zuerst, was es ist – Medikament, Vitamin & Nahrungsergänzung, Hausmittel & Anwendung oder Sonstiges. Der Reiter heißt jetzt „Mittel"; neue Formen wie Brausetablette, Lutschtablette, Pulver, Tee oder Spray
+- **Wie lange?** Dauer mit einem Tipp: dauerhaft, 5, 7, 10, 14 Tage oder eigene Dauer, Start heute, morgen oder an einem Datum. Die Vorschau zeigt Zeitraum, Anzahl der Einnahmen und ob der Vorrat reicht
+- **Kuren im Blick:** „Tag 3 von 14" auf „Heute", „letzte Einnahme" in der Erinnerung, nach dem Ende eine Bilanz mit „Wiederholen" oder „+7 Tage"; beendete Einträge stehen unter „Abgeschlossen"
+- Weniger Ballast: Vorrat, Gewicht, Wecker und Wechselwirkung stehen unter „Weitere Optionen"
+- Behoben: Bei befristeten Plänen meldet der Vorrat „reicht bis zum Ende" bzw. „es fehlen …" statt einer unsinnigen Tageszahl; nach dem Ende kommt keine Nachkauf-Erinnerung mehr
+- Behoben: Uhrzeiten, die beim Anlegen schon vorbei waren, gelten nicht mehr als verpasst (kein Nachhaken, zählen nicht in der Therapietreue)
+- Behoben: Gelöschte Einträge bleiben im Verlauf erhalten, wie angekündigt
+
 ## 1.6.5 – 23.10.2026
 - **„Mehr" neu aufgeräumt:** klare Abschnitte (Erinnerungen, Personen & Tiere, Notfall-Kontakt, Sicherung, App, Daten löschen), Schalter statt Häkchen und zu jeder Option eine Erklärung, was „An" und „Aus" genau bewirkt
 - Nachhaken mit Live-Beispiel („Einnahme um 08:00 → weitere Erinnerungen um 08:15, 08:30 …")

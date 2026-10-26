@@ -253,6 +253,49 @@ const I18N = (() => {
     'In Google Drive gesichert.':'Backed up to Google Drive.',
     'Verbindung zu Google trennen?\n\nDie letzte Sicherung bleibt in deinem Google Drive erhalten.':'Disconnect from Google?\n\nThe last backup stays in your Google Drive.',
     'Verbindung getrennt.':'Disconnected.',
+    // 1.7.0 – Arten, Dauer, Abschluss
+    'Mittel':'Meds & more', 'Mittel · {n}':'Meds & more · {n}', '1 Mittel':'1 item', '{n} Mittel':'{n} items',
+    'Brausetablette':'Effervescent tablet', 'Lutschtablette':'Lozenge', 'Kautablette/Gummi':'Chewable/Gummy', 'Pulver/Granulat':'Powder/Granules',
+    'Trinkampulle':'Drinking ampoule', 'Tee':'Tea', 'Spray':'Spray', 'Zäpfchen':'Suppository', 'Anwendung':'Application',
+    'Vitamin & Nahrungsergänzung':'Vitamin & supplement', 'Hausmittel & Anwendung':'Home remedy & routine', 'Sonstiges':'Other',
+    'Tabletten, Tropfen, Spritzen …':'Tablets, drops, injections …', 'z. B. Vitamin C, Zink, Magnesium':'e.g. vitamin C, zinc, magnesium',
+    'z. B. Tee, Inhalieren, Gurgeln':'e.g. tea, inhaling, gargling', 'Alles, woran Dosia erinnern soll':'Anything Dosia should remind you of',
+    'z. B. Vitamin C':'e.g. vitamin C', 'z. B. Salbeitee, Inhalieren':'e.g. sage tea, inhaling', 'z. B. Wasser trinken':'e.g. drink water',
+    'Neue Nahrungsergänzung':'New supplement', 'Nahrungsergänzung bearbeiten':'Edit supplement',
+    'Neues Hausmittel':'New home remedy', 'Hausmittel bearbeiten':'Edit home remedy',
+    'Neue Erinnerung':'New reminder', 'Erinnerung bearbeiten':'Edit reminder',
+    'Was möchtest du anlegen?':'What would you like to add?', 'Zuletzt beendet':'Recently finished',
+    '1 Tag':'1 day', '{n} Tage':'{n} days', 'Tag {x} von {y}':'Day {x} of {y}',
+    '{name} abgeschlossen':'{name} finished', 'Wiederholen':'Repeat', '+7 Tage':'+7 days', 'OK':'OK',
+    'es fehlen {n}':'{n} short', 'Lege unter „Mittel“ etwas an.':'Add something under “Meds & more”.',
+    'Noch nichts angelegt.':'Nothing added yet.',
+    'Tippe auf „+“ – für Medikamente, Vitamine, Hausmittel oder andere Erinnerungen.':'Tap “+” – for medication, vitamins, home remedies or other reminders.',
+    'startet {d}':'starts {d}', 'endet heute':'ends today', 'noch {n} Tage':'{n} days left', 'reicht bis zum Ende ✓':'lasts until the end ✓',
+    'Abgeschlossen · {n}':'Finished · {n}', 'bis {d}':'until {d}',
+    'Wie lange?':'How long?', 'Dauerhaft':'Ongoing', 'Andere …':'Other …', 'z. B. 3':'e.g. 3',
+    'Tage':'Days', 'Wochen':'Weeks', 'bis Datum':'until date', 'Ab':'From', 'Morgen':'Tomorrow', 'Datum …':'Date …',
+    'Weitere Optionen (Vorrat, Gewicht, Wecker …)':'More options (supply, weight, alarm …)',
+    'Bitte eine Dauer eingeben.':'Please enter a duration.', 'Das Ende liegt vor dem Start.':'The end is before the start.',
+    'Heute sind alle Uhrzeiten schon vorbei – Start ab morgen.':'All times have passed for today – starting tomorrow.',
+    'Ab {d} · dauerhaft':'From {d} · ongoing', '1 Einnahme':'1 dose', '{n} Einnahmen':'{n} doses',
+    'Das Ende liegt in der Vergangenheit – der Eintrag zählt dann als abgeschlossen.':'The end is in the past – the entry will count as finished.',
+    'Vorrat reicht bis zum Ende ✓':'Supply lasts until the end ✓', 'Vorrat reicht nicht – es fehlen {n}':'Supply won’t last – {n} short',
+    'Gerechnet ab dem Starttag (unten bei „Ab“).':'Counted from the start day (below at “From”).',
+    '„{name}“ löschen? Der Verlauf bleibt erhalten.':'Delete “{name}”? The history is kept.',
+    '„{p}" löschen?\n\nDabei werden auch {n} Mittel und {w} Messwert(e) von {p} gelöscht.':'Delete “{p}”?\n\nThis also deletes {n} item(s) and {w} reading(s) of {p}.',
+    'letzte Einnahme':'last dose', 'Erinnert an deine Einnahmen':'Reminds you of your doses',
+    'Solange der Plan läuft (Start bis Ende), fragt Dosia beim ersten Abhaken am Tag nach dem Gewicht – höchstens einmal täglich.':
+      'While the plan is running (start to end), Dosia asks for the weight at the first check-off of the day – at most once a day.',
+    'Für besonders wichtige Einnahmen: Die Erinnerung klingelt bildschirmfüllend mit Wecker-Ton – auch bei gesperrtem Handy –, bis du „Genommen" oder „Später" tippst.':
+      'For especially important doses: the reminder rings full-screen with an alarm sound – even on a locked phone – until you tap “Taken” or “Later”.',
+    '<b>An:</b> Hast du eine Dosis nicht mit ✓ bestätigt oder übersprungen, erinnert Dosia im gewählten Abstand noch einmal. Spätestens bei der nächsten Einnahme desselben Mittels (höchstens 24 Std.) ist Schluss. <b>Aus:</b> nur eine Erinnerung pro Einnahme.':
+      '<b>On:</b> if you haven’t confirmed a dose with ✓ or skipped it, Dosia reminds you again at the chosen interval – until the next dose of the same item at the latest (max. 24 h). <b>Off:</b> only one reminder per dose.',
+    'In jeder Benachrichtigung: <b>„✓ Genommen“</b> hakt die Dosis ab, <b>„⏰ In 10 Min.“</b> erinnert dich zehn Minuten später noch einmal. Den <b>Wecker-Modus</b> (klingelt bildschirmfüllend) schaltest du beim einzelnen Eintrag ein.':
+      'In every notification: <b>“✓ Taken”</b> checks off the dose, <b>“⏰ In 10 min”</b> reminds you again ten minutes later. <b>Alarm mode</b> (rings full-screen) is turned on per entry.',
+    'Verwaltest du Erinnerungen für mehrere – z. B. ein Kind, die Eltern oder dein Haustier –, lege hier je eine Person oder ein Tier an. Mittel und Messwerte werden dann getrennt geführt, oben in jeder Ansicht kannst du filtern, und die Erinnerung sagt, für wen die Dosis ist.':
+      'If you manage reminders for several people or pets – e.g. a child, your parents or your dog – add each one here. Items and readings are then kept separately, you can filter at the top of every view, and the reminder tells you who the dose is for.',
+    'Löscht <b>alle</b> Einträge, Einnahmen, Messwerte, Personen und Einstellungen auf diesem Handy und stoppt alle Erinnerungen. Lässt sich nicht rückgängig machen – exportiere vorher ein Backup. Eine Sicherung in Google Drive bleibt erhalten.':
+      'Deletes <b>all</b> entries, doses, readings, people and settings on this phone and stops all reminders. This cannot be undone – export a backup first. A Google Drive backup is kept.',
   };
 
   function t(s, vars){

@@ -145,6 +145,13 @@
   details.more-info summary::-webkit-details-marker{display:none}
   .status-line{display:flex; align-items:center; gap:10px; margin-top:8px; font-size:14.5px}
   .center{text-align:center}
+/* Art-Auswahl beim Anlegen */
+.kind-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.kind-tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px 12px;border-radius:14px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);cursor:pointer}
+.kind-tile:active{transform:scale(.98)}
+.kind-tile .ic{font-size:26px;line-height:1}
+.kind-tile .nm{font-weight:600;font-size:15px}
+.kind-tile .ex{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -160,7 +167,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="today" class="on"><span class="ic">📅</span>Heute</button>
-  <button data-tab="meds"><span class="ic">💊</span>Medikamente</button>
+  <button data-tab="meds"><span class="ic">💊</span>Mittel</button>
   <button data-tab="measure"><span class="ic">📈</span>Werte</button>
   <button data-tab="history"><span class="ic">✓</span>Verlauf</button>
   <button data-tab="more"><span class="ic">⋯</span>Mehr</button>

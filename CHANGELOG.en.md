@@ -1,5 +1,14 @@
 # Changelog (English)
 
+## 1.7.0 – 26.10.2026
+- **Not just medication:** when adding, you first pick what it is – medication, vitamin & supplement, home remedy & routine or other. The tab is now called “Meds & more”; new forms such as effervescent tablet, lozenge, powder, tea or spray
+- **How long?** Set the duration with one tap: ongoing, 5, 7, 10, 14 days or a custom duration, starting today, tomorrow or on a date. The preview shows the period, the number of doses and whether the supply lasts
+- **Courses at a glance:** “Day 3 of 14” on “Today”, “last dose” in the reminder, a summary after the end with “Repeat” or “+7 days”; finished entries are listed under “Finished”
+- Less clutter: supply, weight, alarm and interaction are under “More options”
+- Fixed: for time-limited plans the supply shows “lasts until the end” or “… short” instead of a meaningless number of days; no more restock reminder after the end
+- Fixed: times that had already passed when an entry was added no longer count as missed (no follow-ups, not counted in adherence)
+- Fixed: deleted entries stay in the history, as promised
+
 ## 1.6.5 – 23.10.2026
 - **“More” reorganised:** clear sections (Reminders, People & pets, Emergency contact, Backup, App, Delete data), switches instead of checkboxes and an explanation for every option of exactly what “On” and “Off” do
 - Follow-ups with a live example (“dose at 08:00 → further reminders at 08:15, 08:30 …”)

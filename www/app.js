@@ -8,7 +8,8 @@ const DB_KEY = 'dosia.db.v1';
 const defaultDB = () => ({
   version: 2,
   profiles: [{ id:'me', name:t('Ich'), kind:'person' }],   // für wen: Personen oder Tiere
-  meds: [],          // {id,profileId,name,form,strength,color,stock,stockThreshold,schedule,notes,interact,trackWeight,createdAt,archived}
+  meds: [],          // {id,profileId,name,form,strength,color,stock,stockThreshold,schedule,notes,interact,trackWeight,createdAt,archived,
+                     //  kind:'med'|'supplement'|'remedy'|'other', archivedAt, endAck (Ende quittiert)}
   intake: {},        // { "YYYY-MM-DD": { "medId|HH:MM": {status:'taken'|'skipped', ts} } }
   measures: [],      // {id,profileId,medId?,type,value,value2,unit,ts,note}
   // followUpMax: wie oft nachgehakt wird; 0 = bis abgehakt (spätestens bis zur nächsten Einnahme, max. 24 h)
@@ -21,7 +22,7 @@ function migrate(d){
   db.settings = Object.assign(defaultDB().settings, (d && d.settings) || {});
   if(!Array.isArray(db.profiles) || !db.profiles.length) db.profiles = defaultDB().profiles;
   const ids = new Set(db.profiles.map(p=>p.id)), first = db.profiles[0].id;
-  for(const m of db.meds){ if(!ids.has(m.profileId)) m.profileId = first; if(m.trackWeight === undefined) m.trackWeight = false; }
+  for(const m of db.meds){ if(!ids.has(m.profileId)) m.profileId = first; if(m.trackWeight === undefined) m.trackWeight = false; if(!m.kind) m.kind = 'med'; }
   for(const x of db.measures){ if(!ids.has(x.profileId)) x.profileId = first; }
   if(db.settings.profileFilter !== 'all' && !ids.has(db.settings.profileFilter)) db.settings.profileFilter = 'all';
   db.version = 2;
@@ -62,11 +63,23 @@ const parseNum = s => { const t=String(s??'').trim().replace(/\s/g,'').replace('
 
 const FORMS = [
   {v:'tablette',t:'Tablette',ic:'💊'},{v:'kapsel',t:'Kapsel',ic:'💊'},
-  {v:'tropfen',t:'Tropfen',ic:'💧'},{v:'spritze',t:'Spritze/Injektion',ic:'💉'},
-  {v:'inhalator',t:'Inhalator',ic:'🫁'},{v:'salbe',t:'Salbe/Creme',ic:'🧴'},
-  {v:'saft',t:'Saft',ic:'🥤'},{v:'pflaster',t:'Pflaster',ic:'🩹'},{v:'sonstige',t:'Sonstige',ic:'➕'}
+  {v:'brausetablette',t:'Brausetablette',ic:'🥛'},{v:'lutschtablette',t:'Lutschtablette',ic:'🍬'},
+  {v:'kautablette',t:'Kautablette/Gummi',ic:'🍭'},{v:'pulver',t:'Pulver/Granulat',ic:'🥄'},
+  {v:'tropfen',t:'Tropfen',ic:'💧'},{v:'saft',t:'Saft',ic:'🥤'},{v:'trinkampulle',t:'Trinkampulle',ic:'🧪'},
+  {v:'tee',t:'Tee',ic:'🍵'},{v:'spray',t:'Spray',ic:'💨'},{v:'inhalator',t:'Inhalator',ic:'🫁'},
+  {v:'salbe',t:'Salbe/Creme',ic:'🧴'},{v:'pflaster',t:'Pflaster',ic:'🩹'},{v:'zaepfchen',t:'Zäpfchen',ic:'💊'},
+  {v:'spritze',t:'Spritze/Injektion',ic:'💉'},{v:'anwendung',t:'Anwendung',ic:'🌿'},{v:'sonstige',t:'Sonstige',ic:'➕'}
 ].map(x=>({...x, t:t(x.t)}));
 const formIcon = f => (FORMS.find(x=>x.v===f)||{}).ic || '💊';
+
+// Arten von Einträgen. Bewusst OHNE vorbelegte Wirkstoffe, Mengen oder Dauern – nur Beispiele als Platzhalter.
+const KINDS = [
+  {v:'med',        ic:'💊', t:'Medikament',                  ex:'Tabletten, Tropfen, Spritzen …',   ph:'z. B. Ramipril',             nw:'Neues Medikament',       ed:'Medikament bearbeiten',       form:'tablette'},
+  {v:'supplement', ic:'🍊', t:'Vitamin & Nahrungsergänzung', ex:'z. B. Vitamin C, Zink, Magnesium', ph:'z. B. Vitamin C',            nw:'Neue Nahrungsergänzung', ed:'Nahrungsergänzung bearbeiten', form:'tablette'},
+  {v:'remedy',     ic:'🌿', t:'Hausmittel & Anwendung',      ex:'z. B. Tee, Inhalieren, Gurgeln',   ph:'z. B. Salbeitee, Inhalieren', nw:'Neues Hausmittel',       ed:'Hausmittel bearbeiten',       form:'anwendung'},
+  {v:'other',      ic:'✨', t:'Sonstiges',                   ex:'Alles, woran Dosia erinnern soll', ph:'z. B. Wasser trinken',       nw:'Neue Erinnerung',        ed:'Erinnerung bearbeiten',       form:'sonstige'},
+].map(k=>({...k, t:t(k.t), ex:t(k.ex), ph:t(k.ph), nw:t(k.nw), ed:t(k.ed)}));
+const kindOf = v => KINDS.find(k=>k.v===v) || KINDS[0];
 
 /* ---------- Profile (Person / Tier) ---------- */
 const PROFILE_KINDS = [
@@ -118,6 +131,45 @@ function weightDueProfiles(key=todayKey()){
 function daysBetween(aKey,bKey){
   const a=new Date(aKey+'T00:00'), b=new Date(bKey+'T00:00');
   return Math.round((b-a)/86400000);
+}
+const addDays = (key, n) => { const d=new Date(key+'T00:00'); d.setDate(d.getDate()+n); return todayKey(d); };
+const doseDate = (key, time) => { const [h,m]=time.split(':').map(Number); const d=new Date(key+'T00:00'); d.setHours(h,m,0,0); return d; };
+const fmtShort = key => new Date(key+'T00:00').toLocaleDateString(I18N.locale,{weekday:'short',day:'2-digit',month:'2-digit'});
+const fmtDayCount = n => n===1 ? t('1 Tag') : t('{n} Tage',{n});
+// Tatsächlicher erster Tag des Plans (ohne Startdatum: der Tag der Anlage)
+const effectiveStart = med => (med.schedule && med.schedule.start) || (med.createdAt ? todayKey(new Date(med.createdAt)) : todayKey());
+// Befristeter Plan, dessen letzter Tag vorbei ist
+const isEnded = (med, today=todayKey()) => !!(med.schedule && med.schedule.end && med.schedule.end < today);
+// Dosen, deren Uhrzeit beim Anlegen schon vorbei war, gelten nicht als verpasst (kein Nachhaken, zählen nicht im Verlauf)
+const excused = (med, key, time) => !!med.createdAt && !intakeState(key, med.id, time) && doseDate(key, time) < new Date(med.createdAt);
+// "Tag X von Y" für befristete Pläne, sonst null
+function courseDay(med, key=todayKey()){
+  const s=med.schedule||{}; if(!s.end) return null;
+  const st=effectiveStart(med); if(key<st || key>s.end) return null;
+  return { x:daysBetween(st,key)+1, y:daysBetween(st,s.end)+1 };
+}
+// Bilanz eines befristeten Plans: { days, planned, taken }
+function courseStats(med){
+  const s=med.schedule||{}, st=effectiveStart(med), end=s.end||todayKey();
+  let planned=0, taken=0;
+  for(let k=st, i=0; k<=end && i<800; k=addDays(k,1), i++){
+    if(!isActiveOn(med,k)) continue;
+    for(const tm of s.times||[]){
+      if(excused(med,k,tm)) continue;
+      planned++;
+      if(intakeState(k,med.id,tm)?.status==='taken') taken++;
+    }
+  }
+  return { days:daysBetween(st,end)+1, planned, taken };
+}
+// Ist das die letzte Einnahme eines befristeten Plans?
+function isLastDose(med, key, time){
+  const s=med.schedule||{}; if(!s.end || !key || key>s.end) return false;
+  for(let k=key, i=0; k<=s.end && i<800; k=addDays(k,1), i++){
+    if(!isActiveOn(med,k)) continue;
+    if((s.times||[]).some(tm=> k>key || tm>time)) return false;
+  }
+  return true;
 }
 function isActiveOn(med, dateKey){
   const s = med.schedule||{};
@@ -174,6 +226,22 @@ function dosesForDay(dateKey){
 }
 // Dosen eines Tages für die Anzeige (Profil-Filter). Erinnerungen nutzen weiter dosesForDay (alle Profile).
 const visibleDoses = dateKey => dosesForDay(dateKey).filter(d => inFilter(d.med.profileId));
+// Dosen für Verlauf und Therapietreue: auch gelöschte Einträge bis zum Löschzeitpunkt, ohne Dosen vor der Anlage
+function historyDoses(dateKey){
+  const out=[];
+  for(const med of DB.meds){
+    if(!inFilter(med.profileId)) continue;
+    if(med.archived && !med.archivedAt) continue;          // ohne Zeitpunkt (alt oder mit Profil gelöscht): ganz raus
+    if(!isActiveOn(med, dateKey)) continue;
+    const gone = med.archived ? new Date(med.archivedAt) : null;
+    for(const tm of (med.schedule?.times||[])){
+      if(gone && doseDate(dateKey, tm) >= gone) continue;
+      if(excused(med, dateKey, tm)) continue;
+      out.push({medId:med.id, time:tm, med});
+    }
+  }
+  return out;
+}
 function intakeState(dateKey, medId, time){
   return DB.intake[dateKey]?.[medId+'|'+time] || null;
 }
@@ -211,14 +279,30 @@ function dosesPerDay(med){
   }
   return n / days;
 }
-// { daysLeft, until, low } oder null, wenn kein Bestand gepflegt wird
+// Reicht der Vorrat? Spielt die offenen Dosen ab heute durch (Rhythmus und Ende werden beachtet).
+// { daysLeft, low, endPlan, need, enough } oder null, wenn kein Bestand gepflegt wird
 function stockInfo(med){
   if(typeof med.stock!=='number') return null;
-  const perDay = dosesPerDay(med);
-  const daysLeft = perDay>0 ? Math.floor(med.stock / perDay) : null;
-  const until = daysLeft!=null ? new Date(Date.now() + daysLeft*86400000) : null;
-  const low = med.stockThreshold>0 && med.stock <= med.stockThreshold;
-  return { daysLeft, until, low };
+  const s=med.schedule||{}, endPlan=!!s.end, times=[...(s.times||[])].sort();
+  let left=med.stock, need=0, first=null, empty=null;
+  for(let i=0, k=todayKey(); i<400; i++, k=addDays(k,1)){
+    if(endPlan && k>s.end) break;
+    if(!endPlan && empty!==null) break;
+    if(!isActiveOn(med,k)) continue;
+    for(const tm of times){
+      if(intakeState(k,med.id,tm) || excused(med,k,tm)) continue;
+      need++;
+      if(first===null) first=i;
+      if(left>0) left--; else if(empty===null) empty=i;
+    }
+  }
+  let daysLeft = null;
+  if(empty!==null) daysLeft = empty - first;
+  else if(!endPlan){ const perDay=dosesPerDay(med); if(perDay>0) daysLeft = Math.floor(med.stock / perDay); }
+  const enough = med.stock >= need;
+  // Bei befristeten Plänen nur warnen, wenn der Vorrat bis zum Ende nicht reicht
+  const low = med.stockThreshold>0 && med.stock <= med.stockThreshold && !(endPlan && enough);
+  return { daysLeft, low, endPlan, need, enough };
 }
 const fmtDays = n => n===0 ? t('heute leer') : n===1 ? t('reicht ~1 Tag') : t('reicht ~{n} Tage',{n});
 
@@ -235,7 +319,7 @@ function adherence(days=7){
   for(let i=0;i<days;i++){
     const d=new Date(now); d.setDate(now.getDate()-i);
     const key=todayKey(d);
-    for(const dose of visibleDoses(key)){
+    for(const dose of historyDoses(key)){
       // Nur vergangene/aktuelle Dosen zählen
       if(key===todayKey() ){
         const [h,m]=dose.time.split(':').map(Number);
@@ -283,13 +367,28 @@ function renderToday(){
     </div></div>`;
   }
 
+  // Befristeter Plan in den letzten 7 Tagen beendet: Bilanz, Wiederholen, Verlängern
+  const yesterday=addDays(key,-1);
+  for(const med of DB.meds.filter(m=>!m.archived && inFilter(m.profileId) && isEnded(m,key) && m.schedule.end>=addDays(key,-7) && m.endAck!==m.schedule.end)){
+    const cs=courseStats(med);
+    html += `<div class="card" style="border-color:var(--ok)"><div class="row">
+      <div class="pill">🏁</div>
+      <div class="grow"><div class="title">${t('{name} abgeschlossen',{name:esc(med.name)})}</div>
+        <div class="sub">${multiProfile()?profileLabel(profileById(med.profileId))+' · ':''}${fmtDayCount(cs.days)} · ${t('{a} von {b} genommen',{a:cs.taken,b:cs.planned})}</div></div>
+    </div><div class="actions" style="margin-top:10px">
+      <button class="btn-ghost btn-sm" onclick="act.repeatMed('${med.id}')">${t('Wiederholen')}</button>
+      ${med.schedule.end===yesterday?`<button class="btn-ghost btn-sm" onclick="act.extendMed('${med.id}')">${t('+7 Tage')}</button>`:''}
+      <button class="btn-primary btn-sm" onclick="act.ackEnd('${med.id}')">${t('OK')}</button>
+    </div></div>`;
+  }
+
   // Vorrat knapp
-  for(const med of DB.meds.filter(m=>!m.archived && inFilter(m.profileId))){
+  for(const med of DB.meds.filter(m=>!m.archived && inFilter(m.profileId) && !isEnded(m,key))){
     const si=stockInfo(med); if(!si || !si.low) continue;
     html += `<div class="card"><div class="row">
       <div class="pill">🛒</div>
       <div class="grow"><div class="title">${t('Nachkaufen: {name}',{name:esc(med.name)})}</div>
-        <div class="sub">${multiProfile()?profileLabel(profileById(med.profileId))+' · ':''}${t('noch {n}',{n:med.stock})}${si.daysLeft!=null?' · '+fmtDays(si.daysLeft):''}</div></div>
+        <div class="sub">${multiProfile()?profileLabel(profileById(med.profileId))+' · ':''}${t('noch {n}',{n:med.stock})}${si.endPlan?' · '+t('es fehlen {n}',{n:si.need-med.stock}):si.daysLeft!=null?' · '+fmtDays(si.daysLeft):''}</div></div>
       <button class="btn-ghost btn-sm" onclick="act.editMed('${med.id}')">${t('Bestand')}</button>
     </div></div>`;
   }
@@ -299,7 +398,7 @@ function renderToday(){
   if(contact){
     const nowMs = Date.now();
     const overdue = doses.filter(d=>{ const [h,mi]=d.time.split(':').map(Number); const t=new Date(); t.setHours(h,mi,0,0);
-      return nowMs - t.getTime() > 2*3600000 && !intakeState(key,d.medId,d.time); });
+      return nowMs - t.getTime() > 2*3600000 && !intakeState(key,d.medId,d.time) && !excused(d.med,key,d.time); });
     if(overdue.length){
       const phone = (contact.match(/\+?\d[\d\s\/().-]{4,}\d/)||[''])[0].replace(/[^\d+]/g,'');
       html += `<div class="card" style="border-color:var(--warn)"><div class="row">
@@ -314,7 +413,7 @@ function renderToday(){
   }
 
   if(!doses.length){
-    html += `<div class="empty"><div class="big">🗓️</div>${t('Für heute sind keine Einnahmen geplant.')}<br><span class="muted">${t('Lege unter „Medikamente" etwas an.')}</span></div>`;
+    html += `<div class="empty"><div class="big">🗓️</div>${t('Für heute sind keine Einnahmen geplant.')}<br><span class="muted">${t('Lege unter „Mittel“ etwas an.')}</span></div>`;
     view.innerHTML=html; return;
   }
 
@@ -347,7 +446,7 @@ function renderToday(){
       html += `<div class="dose-item ${taken?'state-taken':''}">
         <div class="pill" style="background:${d.med.color||'var(--surface-2)'}22">${formIcon(d.med.form)}</div>
         <div class="grow"><div class="title">${esc(d.med.name)}</div>
-          <div class="sub">${multiProfile()&&DB.settings.profileFilter==='all'?profileLabel(profileById(d.med.profileId))+' · ':''}${esc(d.med.strength||'')}${d.med.trackWeight?' · ⚖️':''} ${skip?`· <span style="color:var(--danger)">${t('übersprungen')}</span>`:''} ${taken?`· <span style="color:var(--ok)">${t('genommen')}</span>`:''}</div></div>
+          <div class="sub">${doseSub(d.med,key)} ${skip?`· <span style="color:var(--danger)">${t('übersprungen')}</span>`:''} ${taken?`· <span style="color:var(--ok)">${t('genommen')}</span>`:''}</div></div>
         <div class="take">
           <button class="btn-round ${taken?'btn-primary':''}" title="${t('Genommen')}" onclick="act.take('${key}','${d.medId}','${d.time}')">✓</button>
           <button class="btn-round ${skip?'btn-danger':'btn-ghost'}" title="${t('Überspringen')}" onclick="act.skip('${key}','${d.medId}','${d.time}')">⤬</button>
@@ -358,14 +457,24 @@ function renderToday(){
   view.innerHTML=html;
 }
 
-/* ---- Medikamente ---- */
+// Unterzeile einer Dosis auf "Heute": Profil · Stärke · Tag X von Y · ⚖️
+function doseSub(med, key){
+  const cd=courseDay(med,key);
+  return [
+    multiProfile()&&DB.settings.profileFilter==='all' ? profileLabel(profileById(med.profileId)) : '',
+    esc(med.strength||''),
+    cd ? t('Tag {x} von {y}',cd) : '',
+    med.trackWeight ? '⚖️' : ''
+  ].filter(Boolean).join(' · ');
+}
+
+/* ---- Mittel ---- */
 function renderMeds(){
-  const meds=DB.meds.filter(m=>!m.archived && inFilter(m.profileId));
-  let html=profileBar() + `<h2 class="section">${t('Medikamente · {n}',{n:meds.length})}</h2>`;
-  if(!meds.length){
-    html+=`<div class="empty"><div class="big">💊</div>${t('Noch keine Medikamente.')}<br><span class="muted">${t('Tippe auf „+", um eines anzulegen.')}</span></div>`;
-    view.innerHTML=html; return;
-  }
+  const today=todayKey();
+  const all=DB.meds.filter(m=>!m.archived && inFilter(m.profileId));
+  const meds=all.filter(m=>!isEnded(m,today)), ended=all.filter(m=>isEnded(m,today)).sort((a,b)=>b.schedule.end.localeCompare(a.schedule.end));
+  let html=profileBar() + `<h2 class="section">${t('Mittel · {n}',{n:meds.length})}</h2>`;
+  if(!meds.length) html+=`<div class="empty"><div class="big">💊</div>${t('Noch nichts angelegt.')}<br><span class="muted">${t('Tippe auf „+“ – für Medikamente, Vitamine, Hausmittel oder andere Erinnerungen.')}</span></div>`;
   // Bei "Alle" und mehreren Profilen nach Profil gruppieren
   const grouped = multiProfile() && DB.settings.profileFilter==='all';
   let lastPid = null;
@@ -375,15 +484,19 @@ function renderMeds(){
       lastPid = med.profileId;
       html += `<h2 class="section" style="margin-top:14px">${profileLabel(profileById(med.profileId))}</h2>`;
     }
-    const low = typeof med.stock==='number' && med.stock<= (med.stockThreshold??0) && (med.stockThreshold>0);
-    const sched=scheduleSummary(med.schedule);
+    const sched=scheduleSummary(med.schedule), se=med.schedule||{};
+    const runTag = se.start && se.start>today ? `<span class="tag">${t('startet {d}',{d:fmtShort(se.start)})}</span>`
+      : se.end===today ? `<span class="tag warn">${t('endet heute')}</span>`
+      : se.end ? `<span class="tag">${t('noch {n} Tage',{n:daysBetween(today,se.end)+1})}</span>` : '';
     html+=`<div class="card"><div class="row">
       <div class="pill" style="background:${med.color||'var(--surface-2)'}22">${formIcon(med.form)}</div>
       <div class="grow" onclick="act.editMed('${med.id}')">
         <div class="title">${esc(med.name)}</div>
-        <div class="sub">${esc(med.strength||'')} · ${esc(sched)}</div>
+        <div class="sub">${[esc(med.strength||''), esc(sched)].filter(Boolean).join(' · ')}</div>
         <div style="margin-top:6px">
+          ${runTag}
           ${(()=>{ const si=stockInfo(med); if(!si) return '';
+            if(si.endPlan) return `<span class="tag ${si.enough?'ok':'danger'}">${t('Bestand: {n}',{n:med.stock})} · ${si.enough?t('reicht bis zum Ende ✓'):t('es fehlen {n}',{n:si.need-med.stock})}</span>`;
             return `<span class="tag ${si.low?'danger':'ok'}">${t('Bestand: {n}',{n:med.stock})}${si.daysLeft!=null?' · '+fmtDays(si.daysLeft):''}${si.low?' · '+t('nachkaufen'):''}</span>`; })()}
           ${med.interact?`<span class="tag warn">${t('⚠ Wechselwirkung')}</span>`:''}
           ${med.trackWeight?`<span class="tag">${t('⚖️ Gewicht')}</span>`:''}
@@ -393,7 +506,21 @@ function renderMeds(){
       <button class="btn-round btn-ghost" onclick="act.editMed('${med.id}')">✎</button>
     </div></div>`;
   }
+  if(ended.length){
+    html+=`<details class="more-info" style="margin-top:14px"><summary>${t('Abgeschlossen · {n}',{n:ended.length})}</summary>`;
+    html+=ended.map(endedRow).join('');
+    html+=`</details>`;
+  }
   view.innerHTML=html;
+}
+// Zeile für einen beendeten Eintrag (Liste "Abgeschlossen", Art-Auswahl)
+function endedRow(med){
+  return `<div class="dose-item">
+    <div class="pill" style="background:${med.color||'var(--surface-2)'}22">${formIcon(med.form)}</div>
+    <div class="grow" onclick="act.editMed('${med.id}')"><div class="title">${esc(med.name)}</div>
+      <div class="sub">${[multiProfile()?profileLabel(profileById(med.profileId)):'', esc(med.strength||''), t('bis {d}',{d:fmtShort(med.schedule.end)})].filter(Boolean).join(' · ')}</div></div>
+    <button class="btn-ghost btn-sm" onclick="act.repeatMed('${med.id}')">${t('Wiederholen')}</button>
+  </div>`;
 }
 function scheduleSummary(s){
   if(!s) return t('kein Plan');
@@ -476,7 +603,7 @@ function renderHistory(){
   html+=`<div class="card"><div class="title" style="margin-bottom:8px">${t('Letzte 14 Tage')}</div>`;
   for(let i=0;i<14;i++){
     const d=new Date(); d.setDate(d.getDate()-i); const key=todayKey(d);
-    const doses=visibleDoses(key);
+    const doses=historyDoses(key);
     if(!doses.length) continue;
     let taken=0,skip=0;
     for(const dose of doses){ const s=intakeState(key,dose.medId,dose.time)?.status; if(s==='taken')taken++; else if(s==='skipped')skip++; }
@@ -526,7 +653,7 @@ function renderMore(){
   if(isNative){
     const fu = s.followUp && s.notify;
     html+=setRow('setFollow', t('Erneut erinnern, bis abgehakt'),
-      t('<b>An:</b> Hast du eine Dosis nicht mit ✓ bestätigt oder übersprungen, erinnert Dosia im gewählten Abstand noch einmal. Spätestens bei der nächsten Einnahme desselben Medikaments (höchstens 24 Std.) ist Schluss. <b>Aus:</b> nur eine Erinnerung pro Einnahme.'),
+      t('<b>An:</b> Hast du eine Dosis nicht mit ✓ bestätigt oder übersprungen, erinnert Dosia im gewählten Abstand noch einmal. Spätestens bei der nächsten Einnahme desselben Mittels (höchstens 24 Std.) ist Schluss. <b>Aus:</b> nur eine Erinnerung pro Einnahme.'),
       s.followUp,
       `<div class="sub-set" style="margin:0 0 6px;${fu?'':'opacity:.5;pointer-events:none'}">
         <div class="grid2">
@@ -535,7 +662,7 @@ function renderMore(){
         </div>
         <div class="example">${followUpExample(s)}</div>
       </div>`);
-    html+=`<div class="hint">${t('In jeder Benachrichtigung: <b>„✓ Genommen“</b> hakt die Dosis ab, <b>„⏰ In 10 Min.“</b> erinnert dich zehn Minuten später noch einmal. Den <b>Wecker-Modus</b> (klingelt bildschirmfüllend) schaltest du beim einzelnen Medikament ein.')}</div>`;
+    html+=`<div class="hint">${t('In jeder Benachrichtigung: <b>„✓ Genommen“</b> hakt die Dosis ab, <b>„⏰ In 10 Min.“</b> erinnert dich zehn Minuten später noch einmal. Den <b>Wecker-Modus</b> (klingelt bildschirmfüllend) schaltest du beim einzelnen Eintrag ein.')}</div>`;
   } else {
     html+=`<div class="notice">${t('⚠ In der Browser-Version können Erinnerungen bei geschlossener Seite nicht garantiert werden. Für zuverlässige Erinnerungen die installierte App nutzen.')}</div>`;
   }
@@ -544,13 +671,13 @@ function renderMore(){
 
   // --- Personen & Tiere ---
   html+=`<h2 class="section group">${t('Personen &amp; Tiere')}</h2><div class="card">
-    <div class="sub">${t('Verwaltest du Medikamente für mehrere – z. B. ein Kind, die Eltern oder dein Haustier –, lege hier je eine Person oder ein Tier an. Medikamente und Messwerte werden dann getrennt geführt, oben in jeder Ansicht kannst du filtern, und die Erinnerung sagt, für wen die Dosis ist.')}</div>
+    <div class="sub">${t('Verwaltest du Erinnerungen für mehrere – z. B. ein Kind, die Eltern oder dein Haustier –, lege hier je eine Person oder ein Tier an. Mittel und Messwerte werden dann getrennt geführt, oben in jeder Ansicht kannst du filtern, und die Erinnerung sagt, für wen die Dosis ist.')}</div>
     ${DB.profiles.map(p=>{
       const n=DB.meds.filter(m=>!m.archived&&m.profileId===p.id).length;
       return `<div class="dose-item">
         <div class="pill">${kindIcon(p.kind)}</div>
         <div class="grow"><div class="title">${esc(p.name)}</div>
-          <div class="sub">${(PROFILE_KINDS.find(k=>k.v===p.kind)||PROFILE_KINDS[0]).t} · ${t(n===1?'{n} Medikament':'{n} Medikamente',{n})}</div></div>
+          <div class="sub">${(PROFILE_KINDS.find(k=>k.v===p.kind)||PROFILE_KINDS[0]).t} · ${t(n===1?'1 Mittel':'{n} Mittel',{n})}</div></div>
         <button class="btn-round btn-ghost" onclick="act.profileForm('${p.id}')" title="${t('Bearbeiten')}">✎</button>
       </div>`;}).join('')}
     <div class="actions" style="margin-top:10px"><button class="btn-ghost btn-sm" onclick="act.profileForm('')">${t('+ Person oder Tier hinzufügen')}</button></div>
@@ -593,7 +720,7 @@ function renderMore(){
 
   // --- Daten löschen ---
   html+=`<h2 class="section group">${t('Daten löschen')}</h2><div class="card" style="border-color:var(--danger)">
-    <div class="sub">${t('Löscht <b>alle</b> Medikamente, Einnahmen, Messwerte, Personen und Einstellungen auf diesem Handy und stoppt alle Erinnerungen. Lässt sich nicht rückgängig machen – exportiere vorher ein Backup. Eine Sicherung in Google Drive bleibt erhalten.')}</div>
+    <div class="sub">${t('Löscht <b>alle</b> Einträge, Einnahmen, Messwerte, Personen und Einstellungen auf diesem Handy und stoppt alle Erinnerungen. Lässt sich nicht rückgängig machen – exportiere vorher ein Backup. Eine Sicherung in Google Drive bleibt erhalten.')}</div>
     <div class="actions" style="margin-top:10px"><button class="btn-danger btn-sm" onclick="act.wipe()">${t('Alle Daten löschen')}</button></div>
   </div>`;
 
@@ -618,34 +745,53 @@ function openModal(html){ modal.innerHTML=html; modalBg.classList.add('open'); }
 function closeModal(){ modalBg.classList.remove('open'); modal.innerHTML=''; }
 modalBg.addEventListener('click',e=>{ if(e.target===modalBg) closeModal(); });
 
-function medForm(med){
-  const defaultPid = DB.settings.profileFilter!=='all' ? DB.settings.profileFilter : DB.profiles[0].id;
-  const m = med || {id:'',profileId:defaultPid,name:'',form:'tablette',strength:'',color:'#1f8a70',stock:'',stockThreshold:'',
-                    notes:'',interact:false,trackWeight:false, schedule:{type:'daily',times:['08:00'],weekdays:[1,2,3,4,5],everyDays:2,onDays:21,offDays:7}};
-  const s=m.schedule||{type:'daily',times:['08:00']};
+// Erster Schritt beim Anlegen: Was soll angelegt werden?
+function kindPicker(){
+  const ended=DB.meds.filter(m=>!m.archived && inFilter(m.profileId) && isEnded(m)).sort((a,b)=>b.schedule.end.localeCompare(a.schedule.end)).slice(0,3);
   openModal(`
-    <div class="modal-head"><h3>${med?t('Medikament bearbeiten'):t('Neues Medikament')}</h3><button class="btn-ghost btn-sm" onclick="act.closeModal()">${t('Schließen')}</button></div>
-    <label>${t('Für')}</label>
-    <select id="mProfile" onchange="document.getElementById('mNewProfile').style.display=this.value==='__new'?'block':'none'">
-      ${DB.profiles.map(p=>`<option value="${p.id}" ${m.profileId===p.id?'selected':''}>${kindIcon(p.kind)} ${esc(p.name)}</option>`).join('')}
-      <option value="__new">${t('＋ Neue Person / neues Tier …')}</option>
-    </select>
+    <div class="modal-head"><h3>${t('Was möchtest du anlegen?')}</h3><button class="btn-ghost btn-sm" onclick="act.closeModal()">${t('Schließen')}</button></div>
+    <div class="kind-grid">${KINDS.map(k=>`<button class="kind-tile" onclick="act.newMedKind('${k.v}')">
+      <span class="ic">${k.ic}</span><span class="nm">${k.t}</span><span class="ex">${k.ex}</span></button>`).join('')}</div>
+    ${ended.length?`<div class="title" style="font-size:15px;margin-top:16px">${t('Zuletzt beendet')}</div>${ended.map(endedRow).join('')}`:''}`);
+}
+
+// Formular für einen Eintrag. opts: { kind, repeatOf, durDays } für neue Einträge bzw. Wiederholungen
+function medForm(med, opts={}){
+  const defaultPid = DB.settings.profileFilter!=='all' ? DB.settings.profileFilter : DB.profiles[0].id;
+  const k0 = kindOf((med && med.kind) || opts.kind);
+  const m = med || {id:'',profileId:defaultPid,kind:k0.v,name:'',form:k0.form,strength:'',color:'#1f8a70',stock:'',stockThreshold:'',
+                    notes:'',interact:false,trackWeight:false, schedule:{type:'daily',times:['08:00'],weekdays:[1,2,3,4,5],everyDays:2,onDays:21,offDays:7}};
+  const isEdit = !!m.id;
+  const s=m.schedule||{type:'daily',times:['08:00']};
+  const moreOpen = k0.v==='med' || typeof m.stock==='number' || m.alarm || m.trackWeight || m.interact;
+  tmpEditId = m.id; tmpRepeatOf = opts.repeatOf || '';
+  openModal(`
+    <div class="modal-head"><h3 id="mTitle">${isEdit?k0.ed:k0.nw}</h3><button class="btn-ghost btn-sm" onclick="act.closeModal()">${t('Schließen')}</button></div>
+    <div class="grid2">
+      <div><label>${t('Für')}</label>
+      <select id="mProfile" onchange="document.getElementById('mNewProfile').style.display=this.value==='__new'?'block':'none'">
+        ${DB.profiles.map(p=>`<option value="${p.id}" ${m.profileId===p.id?'selected':''}>${kindIcon(p.kind)} ${esc(p.name)}</option>`).join('')}
+        <option value="__new">${t('＋ Neue Person / neues Tier …')}</option>
+      </select></div>
+      <div><label>${t('Art')}</label>
+      <select id="mKind" onchange="act.kindChange()">${KINDS.map(k=>`<option value="${k.v}" ${k0.v===k.v?'selected':''}>${k.ic} ${k.t}</option>`).join('')}</select></div>
+    </div>
     <div id="mNewProfile" style="display:none">
       <div class="grid2">
         <div><label>${t('Name')}</label><input id="mNewName" placeholder="${t('z. B. Bello')}"></div>
         <div><label>${t('Art')}</label><select id="mNewKind">${PROFILE_KINDS.map(k=>`<option value="${k.v}">${k.ic} ${k.t}</option>`).join('')}</select></div>
       </div>
     </div>
-    <label>${t('Medikament')}</label><input id="mName" value="${esc(m.name)}" placeholder="${t('z. B. Ramipril')}">
+    <label>${t('Name')}</label><input id="mName" value="${esc(m.name)}" placeholder="${k0.ph}">
     <div class="grid2">
-      <div><label>${t('Form')}</label><select id="mForm">${FORMS.map(f=>`<option value="${f.v}" ${m.form===f.v?'selected':''}>${f.ic} ${f.t}</option>`).join('')}</select></div>
+      <div><label>${t('Form')}</label><select id="mForm" onchange="this.dataset.touched='1'">${FORMS.map(f=>`<option value="${f.v}" ${m.form===f.v?'selected':''}>${f.ic} ${f.t}</option>`).join('')}</select></div>
       <div><label>${t('Stärke / Dosis')}</label><input id="mStrength" value="${esc(m.strength)}" placeholder="${t('z. B. 5 mg')}"></div>
     </div>
     <label>${t('Farbe')}</label><input type="color" id="mColor" value="${m.color||'#1f8a70'}" style="height:44px;padding:4px">
 
     <hr class="sep"><div class="title" style="font-size:15px">${t('Einnahmeplan')}</div>
     <label>${t('Rhythmus')}</label>
-    <select id="mType">
+    <select id="mType" onchange="tmpSched.type=this.value;renderSchedExtra();renderDurPreview()">
       <option value="daily" ${s.type==='daily'?'selected':''}>${t('Täglich')}</option>
       <option value="interval" ${s.type==='interval'?'selected':''}>${t('Alle X Tage')}</option>
       <option value="weekdays" ${s.type==='weekdays'?'selected':''}>${t('Bestimmte Wochentage')}</option>
@@ -659,43 +805,154 @@ function medForm(med){
     <div id="timeList"></div>
     <button class="btn-ghost btn-sm" onclick="act.addTime()" style="margin-top:6px">${t('+ Uhrzeit')}</button>
 
-    <div class="grid2" style="margin-top:4px">
-      <div><label>${t('Start (optional)')}</label><input type="date" id="mStart" value="${s.start||''}"></div>
-      <div><label>${t('Ende (optional)')}</label><input type="date" id="mEnd" value="${s.end||''}"></div>
+    <label>${t('Wie lange?')}</label>
+    <div class="chips" id="durChips">
+      ${[['forever',t('Dauerhaft')],...[5,7,10,14].map(n=>['d'+n,t('{n} Tage',{n})]),['other',t('Andere …')]].map(([v,l])=>`<span class="chip" data-dur="${v}" onclick="act.setDur('${v}')">${l}</span>`).join('')}
     </div>
+    <div id="durOther" class="grid2" style="display:none">
+      <div><input type="number" id="mDurN" min="1" placeholder="${t('z. B. 3')}" oninput="act.setDurN(this.value)">
+        <input type="date" id="mEndDate" style="display:none" onchange="act.setDurDate(this.value)"></div>
+      <div><select id="mDurUnit" onchange="act.setDurUnit(this.value)">
+        <option value="days">${t('Tage')}</option><option value="weeks">${t('Wochen')}</option><option value="date">${t('bis Datum')}</option></select></div>
+    </div>
+    <label>${t('Ab')}</label>
+    <div class="chips" id="startChips">
+      ${[['today',t('Heute')],['tomorrow',t('Morgen')],['date',t('Datum …')]].map(([v,l])=>`<span class="chip" data-start="${v}" onclick="act.setStart('${v}')">${l}</span>`).join('')}
+    </div>
+    <input type="date" id="mStartDate" style="display:none" onchange="act.setStartDate(this.value)">
+    <div class="example" id="durPreview"></div>
 
-    <hr class="sep"><div class="title" style="font-size:15px">${t('Bestand')}</div>
+    <details id="mMore" class="more-info" ${moreOpen?'open':''}><summary>${t('Weitere Optionen (Vorrat, Gewicht, Wecker …)')}</summary>
+    <div class="title" style="font-size:15px;margin-top:8px">${t('Bestand')}</div>
     <div class="grid2">
-      <div><label>${t('Aktueller Bestand')}</label><input type="number" id="mStock" value="${m.stock??''}" placeholder="${t('z. B. 30')}" min="0"></div>
+      <div><label>${t('Aktueller Bestand')}</label><input type="number" id="mStock" value="${m.stock??''}" placeholder="${t('z. B. 30')}" min="0" oninput="renderDurPreview()"></div>
       <div><label>${t('Nachkauf-Erinnerung ab (Stück)')}</label><input type="number" id="mThresh" value="${m.stockThreshold??''}" placeholder="${t('z. B. 7')}" min="0"></div>
     </div>
     <div class="sub">${t('Dosia zieht jede abgehakte Einnahme ab, zeigt an, wie viele Tage der Vorrat reicht, und erinnert rechtzeitig ans Nachkaufen. Nach dem Kauf hier den neuen Bestand eintragen.')}</div>
 
     <hr class="sep"><div class="title" style="font-size:15px">${t('Gewicht')}</div>
     <label style="display:flex;align-items:center;gap:10px;color:var(--text)"><input type="checkbox" id="mWeight" ${m.trackWeight?'checked':''}> ${t('⚖️ Gewicht mit erfassen')}</label>
-    <div class="sub">${t('Solange das Medikament läuft (Start bis Ende), fragt Dosia beim ersten Abhaken am Tag nach dem Gewicht – höchstens einmal täglich.')}</div>
+    <div class="sub">${t('Solange der Plan läuft (Start bis Ende), fragt Dosia beim ersten Abhaken am Tag nach dem Gewicht – höchstens einmal täglich.')}</div>
 
     ${isNative && DA() ? `<hr class="sep"><div class="title" style="font-size:15px">${t('Wecker-Modus')}</div>
     <label style="display:flex;align-items:center;gap:10px;color:var(--text)"><input type="checkbox" id="mAlarm" ${m.alarm?'checked':''}> ${t('⏰ Wie ein Wecker klingeln')}</label>
-    <div class="sub">${t('Für besonders wichtige Medikamente: Die Erinnerung klingelt bildschirmfüllend mit Wecker-Ton – auch bei gesperrtem Handy –, bis du „Genommen" oder „Später" tippst.')}</div>` : ''}
+    <div class="sub">${t('Für besonders wichtige Einnahmen: Die Erinnerung klingelt bildschirmfüllend mit Wecker-Ton – auch bei gesperrtem Handy –, bis du „Genommen" oder „Später" tippst.')}</div>` : ''}
 
     <hr class="sep">
     <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" id="mInteract" ${m.interact?'checked':''}> ${t('⚠ Wechselwirkung/Hinweis markieren')}</label>
+    </details>
     <label>${t('Notizen (Einnahmehinweise, Wechselwirkungen …)')}</label>
     <textarea id="mNotes" rows="3" placeholder="${t('z. B. nüchtern einnehmen; nicht mit Grapefruit')}">${esc(m.notes)}</textarea>
 
     <div class="actions" style="margin-top:16px">
       <button class="btn-primary grow" onclick="act.saveMed('${m.id}')">${t('Speichern')}</button>
-      ${med?`<button class="btn-danger" onclick="act.archiveMed('${m.id}')">${t('Löschen')}</button>`:''}
+      ${isEdit?`<button class="btn-danger" onclick="act.archiveMed('${m.id}')">${t('Löschen')}</button>`:''}
     </div>
   `);
   // dynamische Teile
   tmpTimes = [...(s.times||['08:00'])];
   tmpSched = JSON.parse(JSON.stringify(s));
-  renderTimeList(); renderSchedExtra();
-  $('#mType').onchange=e=>{ tmpSched.type=e.target.value; renderSchedExtra(); };
+  initDuration(m, opts);
+  renderTimeList(); renderSchedExtra(); applyAutoStart(); renderDurSel();
 }
-let tmpTimes=[], tmpSched={};
+let tmpTimes=[], tmpSched={}, tmpEditId='', tmpRepeatOf='';
+
+/* ---- Dauer & Start im Formular ----
+   Gespeichert wird weiter nur schedule.start / schedule.end; die Chips sind nur eine bequeme Eingabe. */
+let tmpDur={kind:'forever', n:0, date:''}, tmpStart={mode:'today', date:'', touched:false, auto:false};
+const DUR_PRESETS=[5,7,10,14];
+function durFromDays(n){
+  if(DUR_PRESETS.includes(n)) return {kind:'days', n, preset:true};
+  return n%7===0 ? {kind:'weeks', n:n/7} : {kind:'days', n};
+}
+function initDuration(m, opts){
+  const sc=m.schedule||{}, today=todayKey();
+  tmpStart={mode:'today', date:'', touched:false, auto:false};
+  tmpDur={kind:'forever', n:0, date:''};
+  if(m.id){
+    const eff=effectiveStart(m);
+    if(eff===today) tmpStart.mode='today';
+    else if(eff===addDays(today,1)) tmpStart.mode='tomorrow';
+    else { tmpStart.mode='date'; tmpStart.date=eff; }
+    if(sc.end){
+      const n=daysBetween(eff,sc.end)+1;
+      tmpDur = n<1 ? {kind:'date', n:0, date:sc.end} : durFromDays(n);
+    }
+  } else if(opts.durDays>0){
+    tmpDur = durFromDays(opts.durDays);
+  }
+}
+// Neuer Eintrag, alle Uhrzeiten heute schon vorbei -> Start automatisch morgen (solange nicht selbst gewählt)
+function applyAutoStart(){
+  if(tmpEditId || tmpStart.touched) return;
+  const nowHM=pad(new Date().getHours())+':'+pad(new Date().getMinutes());
+  const allPast = tmpTimes.length && tmpTimes.every(tm=>tm<=nowHM);
+  tmpStart.mode = allPast ? 'tomorrow' : 'today';
+  tmpStart.auto = allPast;
+}
+function startKey(){
+  const today=todayKey();
+  return tmpStart.mode==='tomorrow' ? addDays(today,1) : tmpStart.mode==='date' && tmpStart.date ? tmpStart.date : today;
+}
+// { start, end, err } aus der Eingabe
+function durRange(){
+  const start=startKey();
+  if(tmpDur.kind==='forever') return {start, end:''};
+  let end;
+  if(tmpDur.kind==='date'){ if(!tmpDur.date) return {err:t('Bitte eine Dauer eingeben.')}; end=tmpDur.date; }
+  else {
+    const n=Math.floor(+tmpDur.n||0); if(n<1) return {err:t('Bitte eine Dauer eingeben.')};
+    end=addDays(start, (tmpDur.kind==='weeks'?n*7:n)-1);
+  }
+  if(end<start) return {err:t('Das Ende liegt vor dem Start.')};
+  return {start, end};
+}
+// Chips und Felder an den Zustand anpassen
+function renderDurSel(){
+  if(!$('#durChips')) return;
+  const other = tmpDur.kind!=='forever' && !tmpDur.preset;
+  const sel = tmpDur.kind==='forever' ? 'forever' : other ? 'other' : 'd'+tmpDur.n;
+  document.querySelectorAll('#durChips .chip').forEach(c=>c.classList.toggle('on', c.dataset.dur===sel));
+  $('#durOther').style.display = other ? '' : 'none';
+  $('#mDurUnit').value = tmpDur.kind==='date' ? 'date' : tmpDur.kind==='weeks' ? 'weeks' : 'days';
+  $('#mDurN').style.display = tmpDur.kind==='date' ? 'none' : '';
+  $('#mEndDate').style.display = tmpDur.kind==='date' ? '' : 'none';
+  if(other && tmpDur.kind!=='date' && document.activeElement!==$('#mDurN')) $('#mDurN').value = tmpDur.n||'';
+  if(tmpDur.kind==='date') $('#mEndDate').value = tmpDur.date||'';
+  document.querySelectorAll('#startChips .chip').forEach(c=>c.classList.toggle('on', c.dataset.start===tmpStart.mode));
+  $('#mStartDate').style.display = tmpStart.mode==='date' ? '' : 'none';
+  if(tmpStart.mode==='date') $('#mStartDate').value = tmpStart.date || todayKey();
+  renderDurPreview();
+}
+// Vorschau: Zeitraum, Anzahl Einnahmen, reicht der Vorrat?
+function renderDurPreview(){
+  const el=$('#durPreview'); if(!el) return;
+  const r=durRange(), lines=[];
+  if(tmpStart.auto && tmpStart.mode==='tomorrow') lines.push(t('Heute sind alle Uhrzeiten schon vorbei – Start ab morgen.'));
+  if(r.err){ lines.push(r.err); el.innerHTML=lines.join('<br>'); return; }
+  if(!r.end){ lines.push(t('Ab {d} · dauerhaft',{d:fmtShort(r.start)})); el.innerHTML=lines.join('<br>'); return; }
+  // Plan so durchspielen, wie er gespeichert würde
+  const probe={ id:tmpEditId||'__new', createdAt: tmpEditId ? (DB.meds.find(x=>x.id===tmpEditId)||{}).createdAt : new Date().toISOString(),
+    schedule:Object.assign({}, tmpSched, {type:$('#mType')?.value||tmpSched.type, times:[...new Set(tmpTimes)].sort(), start:r.start, end:r.end}) };
+  const today=todayKey();
+  let total=0, remain=0;
+  for(let k=r.start, i=0; k<=r.end && i<800; k=addDays(k,1), i++){
+    if(!isActiveOn(probe,k)) continue;
+    for(const tm of probe.schedule.times){
+      total++;
+      if(k>=today && !(tmpEditId && intakeState(k,tmpEditId,tm)) && !excused(probe,k,tm)) remain++;
+    }
+  }
+  const days=daysBetween(r.start,r.end)+1;
+  lines.push(fmtShort(r.start)+' – '+fmtShort(r.end)+' · '+fmtDayCount(days)+' · '+(total===1?t('1 Einnahme'):t('{n} Einnahmen',{n:total})));
+  if(r.end<today) lines.push(t('Das Ende liegt in der Vergangenheit – der Eintrag zählt dann als abgeschlossen.'));
+  const st=$('#mStock')?.value;
+  if(st!=='' && st!=null && r.end>=today){
+    const n=Math.max(0,+st);
+    lines.push(n>=remain ? t('Vorrat reicht bis zum Ende ✓') : t('Vorrat reicht nicht – es fehlen {n}',{n:remain-n}));
+  }
+  el.innerHTML=lines.join('<br>');
+}
 function renderTimeList(){
   const el=$('#timeList'); if(!el) return;
   el.innerHTML=tmpTimes.map((t,i)=>`<div class="row" style="margin-top:6px">
@@ -706,18 +963,18 @@ function renderSchedExtra(){
   const el=$('#schedExtra'); if(!el) return;
   const ty=tmpSched.type;
   if(ty==='interval'){
-    el.innerHTML=`<label>${t('Alle wie viele Tage?')}</label><input type="number" min="1" id="mEvery" value="${tmpSched.everyDays||2}" onchange="tmpSched.everyDays=+this.value">`;
+    el.innerHTML=`<label>${t('Alle wie viele Tage?')}</label><input type="number" min="1" id="mEvery" value="${tmpSched.everyDays||2}" onchange="tmpSched.everyDays=+this.value;renderDurPreview()">`;
   }else if(ty==='weeks' || ty==='months'){
     const k = ty==='weeks' ? 'everyWeeks' : 'everyMonths';
     el.innerHTML=`<label>${ty==='weeks'?t('Alle wie viele Wochen?'):t('Alle wie viele Monate?')}</label>
-      <input type="number" min="1" value="${tmpSched[k]||1}" onchange="tmpSched.${k}=Math.max(1,+this.value||1)">
-      <div class="sub">${t('Gerechnet ab dem Startdatum unten – ohne Startdatum ab heute.')}${ty==='months'?t(' Gibt es den Tag in einem Monat nicht (z. B. 31.), dann am Monatsletzten.'):''}</div>`;
+      <input type="number" min="1" value="${tmpSched[k]||1}" onchange="tmpSched.${k}=Math.max(1,+this.value||1);renderDurPreview()">
+      <div class="sub">${t('Gerechnet ab dem Starttag (unten bei „Ab“).')}${ty==='months'?t(' Gibt es den Tag in einem Monat nicht (z. B. 31.), dann am Monatsletzten.'):''}</div>`;
   }else if(ty==='weekdays'){
     el.innerHTML=`<label>${t('Wochentage')}</label><div class="chips">${[1,2,3,4,5,6,0].map(d=>`<span class="chip ${(tmpSched.weekdays||[]).includes(d)?'on':''}" onclick="act.toggleWd(${d},this)">${WD[d]}</span>`).join('')}</div>`;
   }else if(ty==='cycle'){
-    el.innerHTML=`<div class="grid2"><div><label>${t('Tage „an"')}</label><input type="number" min="1" id="mOn" value="${tmpSched.onDays||21}" onchange="tmpSched.onDays=+this.value"></div>
-      <div><label>${t('Tage „aus"')}</label><input type="number" min="0" id="mOff" value="${tmpSched.offDays||7}" onchange="tmpSched.offDays=+this.value"></div></div>
-      <label>${t('Zyklus-Start')}</label><input type="date" id="mAnchor" value="${tmpSched.anchor||tmpSched.start||todayKey()}" onchange="tmpSched.anchor=this.value">`;
+    el.innerHTML=`<div class="grid2"><div><label>${t('Tage „an"')}</label><input type="number" min="1" id="mOn" value="${tmpSched.onDays||21}" onchange="tmpSched.onDays=+this.value;renderDurPreview()"></div>
+      <div><label>${t('Tage „aus"')}</label><input type="number" min="0" id="mOff" value="${tmpSched.offDays||7}" onchange="tmpSched.offDays=+this.value;renderDurPreview()"></div></div>
+      <label>${t('Zyklus-Start')}</label><input type="date" id="mAnchor" value="${tmpSched.anchor||tmpSched.start||todayKey()}" onchange="tmpSched.anchor=this.value;renderDurPreview()">`;
   }else{ el.innerHTML=''; }
 }
 
@@ -782,15 +1039,49 @@ const act = {
   },
   skip(key,medId,time){ const cur=intakeState(key,medId,time); setIntake(key,medId,time, cur?.status==='skipped'?null:'skipped'); render(); refreshReminders(); },
   // Medikament
-  newMed(){ medForm(null); },
+  newMed(){ kindPicker(); },
+  newMedKind(kind){ medForm(null, {kind}); },
   editMed(id){ medForm(DB.meds.find(m=>m.id===id)); },
-  addTime(){ tmpTimes.push('12:00'); renderTimeList(); },
-  rmTime(i){ tmpTimes.splice(i,1); renderTimeList(); },
-  setTime(i,v){ tmpTimes[i]=v; },
-  toggleWd(d,el){ const w=tmpSched.weekdays=tmpSched.weekdays||[]; const idx=w.indexOf(d); if(idx<0)w.push(d); else w.splice(idx,1); el.classList.toggle('on'); },
+  // Art im Formular gewechselt: Titel, Platzhalter und (falls unberührt) Form anpassen
+  kindChange(){
+    const k=kindOf($('#mKind').value);
+    $('#mTitle').textContent = tmpEditId ? k.ed : k.nw;
+    $('#mName').placeholder = k.ph;
+    const fm=$('#mForm'); if(!tmpEditId && !fm.dataset.touched) fm.value = k.form;
+    if(k.v==='med') $('#mMore').open = true;
+  },
+  addTime(){ tmpTimes.push('12:00'); renderTimeList(); applyAutoStart(); renderDurSel(); },
+  rmTime(i){ tmpTimes.splice(i,1); renderTimeList(); applyAutoStart(); renderDurSel(); },
+  setTime(i,v){ tmpTimes[i]=v; applyAutoStart(); renderDurSel(); },
+  toggleWd(d,el){ const w=tmpSched.weekdays=tmpSched.weekdays||[]; const idx=w.indexOf(d); if(idx<0)w.push(d); else w.splice(idx,1); el.classList.toggle('on'); renderDurPreview(); },
+  setDur(v){
+    if(v==='forever') tmpDur={kind:'forever', n:0, date:''};
+    else if(v==='other') tmpDur={kind: tmpDur.kind==='forever' ? 'days' : tmpDur.kind, n:tmpDur.n, date:tmpDur.date};
+    else tmpDur={kind:'days', n:+v.slice(1), preset:true};
+    renderDurSel();
+  },
+  setDurN(v){ tmpDur.n=Math.floor(+v||0); renderDurPreview(); },
+  setDurUnit(u){ tmpDur.kind=u; if(u==='date' && !tmpDur.date) tmpDur.date = addDays(startKey(),6); renderDurSel(); },
+  setDurDate(v){ tmpDur.date=v; renderDurPreview(); },
+  setStart(v){ tmpStart.mode=v; tmpStart.touched=true; tmpStart.auto=false; if(v==='date' && !tmpStart.date) tmpStart.date=todayKey(); renderDurSel(); },
+  setStartDate(v){ tmpStart.date=v; tmpStart.touched=true; renderDurPreview(); },
+  // Beendeten Plan als neuen Eintrag wiederholen (Verlauf des alten bleibt unverändert)
+  repeatMed(id){
+    const o=DB.meds.find(m=>m.id===id); if(!o) return;
+    const c=JSON.parse(JSON.stringify(o));
+    c.id=''; delete c.createdAt; c.archived=false; delete c.archivedAt; delete c.endAck;
+    const os=o.schedule||{};
+    const durDays = os.end ? daysBetween(effectiveStart(o), os.end)+1 : 0;
+    c.schedule = Object.assign({}, os, {start:'', end:'', anchor:''});
+    medForm(c, {repeatOf:id, durDays});
+  },
+  extendMed(id){ const m=DB.meds.find(x=>x.id===id); if(!m||!m.schedule.end) return; m.schedule.end=addDays(m.schedule.end,7); delete m.endAck; saveDB(); render(); refreshReminders(); },
+  ackEnd(id){ const m=DB.meds.find(x=>x.id===id); if(!m) return; m.endAck=m.schedule.end; saveDB(); render(); },
   saveMed(id){
     const name=$('#mName').value.trim();
-    if(!name){ alert(t('Bitte einen Namen für das Medikament eingeben.')); return; }
+    if(!name){ alert(t('Bitte einen Namen eingeben.')); return; }
+    const r=durRange();
+    if(r.err){ alert(r.err); return; }
     // Für wen? Ggf. direkt eine neue Person / ein neues Tier anlegen
     let profileId=$('#mProfile').value;
     if(profileId==='__new'){
@@ -803,9 +1094,11 @@ const act = {
     const sched={ type:$('#mType').value, times:tmpTimes,
       everyDays:tmpSched.everyDays, everyWeeks:tmpSched.everyWeeks, everyMonths:tmpSched.everyMonths,
       weekdays:tmpSched.weekdays, onDays:tmpSched.onDays, offDays:tmpSched.offDays, anchor:tmpSched.anchor,
-      start:$('#mStart').value||'', end:$('#mEnd').value||'' };
+      start:r.start, end:r.end };
+    // Bearbeiten ohne Änderung beim Start: altes Startfeld behalten (auch leer = ab Anlage)
+    if(id && !tmpStart.touched){ const old=DB.meds.find(m=>m.id===id); if(old && effectiveStart(old)===r.start) sched.start = old.schedule?.start || ''; }
     const data={
-      profileId, trackWeight:$('#mWeight').checked, alarm: $('#mAlarm') ? $('#mAlarm').checked : !!(id && (DB.meds.find(x=>x.id===id)||{}).alarm),
+      profileId, kind:$('#mKind').value, trackWeight:$('#mWeight').checked, alarm: $('#mAlarm') ? $('#mAlarm').checked : !!(id && (DB.meds.find(x=>x.id===id)||{}).alarm),
       name, form:$('#mForm').value, strength:$('#mStrength').value.trim(), color:$('#mColor').value,
       stock: $('#mStock').value===''?null:Math.max(0,+$('#mStock').value),
       stockThreshold: $('#mThresh').value===''?0:Math.max(0,+$('#mThresh').value),
@@ -817,10 +1110,20 @@ const act = {
       if(typeof data.stock==='number' && (typeof old.stock!=='number' || data.stock > old.stock)) clearRestock(id);
       Object.assign(old, data);
     }
-    else{ DB.meds.push(Object.assign({id:uid(),createdAt:new Date().toISOString(),archived:false}, data)); }
+    else{
+      DB.meds.push(Object.assign({id:uid(),createdAt:new Date().toISOString(),archived:false}, data));
+      // Wiederholung: die Abschluss-Karte des Originals ist damit erledigt
+      const orig = tmpRepeatOf && DB.meds.find(m=>m.id===tmpRepeatOf);
+      if(orig && orig.schedule?.end) orig.endAck = orig.schedule.end;
+    }
     saveDB(); closeModal(); render(); refreshReminders();
   },
-  archiveMed(id){ if(confirm(t('Dieses Medikament löschen? Der Verlauf bleibt erhalten.'))){ const m=DB.meds.find(x=>x.id===id); if(m)m.archived=true; saveDB(); closeModal(); render(); refreshReminders(); } },
+  archiveMed(id){
+    const m=DB.meds.find(x=>x.id===id); if(!m) return;
+    if(!confirm(t('„{name}“ löschen? Der Verlauf bleibt erhalten.',{name:m.name}))) return;
+    m.archived=true; m.archivedAt=new Date().toISOString();
+    saveDB(); closeModal(); render(); refreshReminders();
+  },
   // Messwerte
   newMeasure(){ measureForm(); },
   measureTypeChange(){
@@ -863,8 +1166,9 @@ const act = {
   deleteProfile(id){
     const p=DB.profiles.find(x=>x.id===id); if(!p || DB.profiles.length<2) return;
     const n=DB.meds.filter(m=>!m.archived&&m.profileId===id).length, w=DB.measures.filter(m=>m.profileId===id).length;
-    if(!confirm(t('„{p}" löschen?\n\nDabei werden auch {n} Medikament(e) und {w} Messwert(e) von {p} gelöscht.',{p:p.name,n,w}))) return;
-    DB.meds.forEach(m=>{ if(m.profileId===id) m.archived=true; });
+    if(!confirm(t('„{p}" löschen?\n\nDabei werden auch {n} Mittel und {w} Messwert(e) von {p} gelöscht.',{p:p.name,n,w}))) return;
+    // Mit der Person verschwinden auch Verlauf und Therapietreue ihrer Einträge
+    DB.meds.forEach(m=>{ if(m.profileId===id){ m.archived=true; delete m.archivedAt; } });
     DB.measures=DB.measures.filter(m=>m.profileId!==id);
     DB.profiles=DB.profiles.filter(x=>x.id!==id);
     if(DB.settings.profileFilter===id) DB.settings.profileFilter='all';
@@ -998,8 +1302,8 @@ function reminderTitle(med){
   const p = profileById(med.profileId);
   return multiProfile() ? `Dosia · ${p.name}: ${med.name}` : `Dosia · ${med.name}`;
 }
-function reminderBody(med, time){
-  return [time, med.strength || t('Zeit für die Einnahme'), med.trackWeight ? t('Gewicht erfassen') : ''].filter(Boolean).join(' · ');
+function reminderBody(med, time, key){
+  return [time, med.strength || t('Zeit für die Einnahme'), isLastDose(med, key, time) ? t('letzte Einnahme') : '', med.trackWeight ? t('Gewicht erfassen') : ''].filter(Boolean).join(' · ');
 }
 
 // Alle Dosen ab dem Tag von "start" für "days" Tage, mit Zeitpunkt
@@ -1022,6 +1326,7 @@ function nextDoseOf(med, now){
   const base=new Date(now); base.setHours(0,0,0,0);
   for(let d=0; d<400; d++){
     const day=new Date(base); day.setDate(base.getDate()+d); const key=todayKey(day);
+    if(med.schedule?.end && key>med.schedule.end) break;
     if(!isActiveOn(med, key)) continue;
     for(const t of [...(med.schedule?.times||[])].sort()){
       const [h,m]=t.split(':').map(Number); const when=new Date(day); when.setHours(h,m,0,0);
@@ -1077,6 +1382,7 @@ function reminderPlan(now=new Date()){
     const cands = [], seen = new Set();
     for(const o of recent.filter(o=>o.when<=now).concat(doses).sort((a,b)=>a.when-b.when)){
       const ident = doseIdent(o.key, o.med.id, o.time); if(seen.has(ident)) continue; seen.add(ident);
+      if(excused(o.med, o.key, o.time)) continue;                              // beim Anlegen schon vorbei: nicht nachhaken
       const next = all.filter(x=>x.med.id===o.med.id && x.when>o.when).sort((a,b)=>a.when-b.when)[0];
       const end = Math.min(o.when.getTime() + FOLLOWUP_HORIZON_MS, next ? next.when.getTime() : Infinity);
       const pause = snoozeUntil[ident] || 0;
@@ -1105,6 +1411,8 @@ function reminderPlan(now=new Date()){
   // 4) Nachkauf: einmal pro Knapp-Phase (zurückgesetzt, wenn der Bestand erhöht wird)
   const rs=getRestock();
   for(const med of DB.meds.filter(m=>!m.archived && typeof m.stock==='number' && m.stockThreshold>0)){
+    const si=stockInfo(med);
+    if(si && si.endPlan && si.enough){ delete rs[med.id]; continue; }    // befristeter Plan: Vorrat reicht bis zum Ende
     if(rs[med.id] && rs[med.id] <= now.getTime()) continue;              // bereits erinnert
     let at, left;
     if(med.stock <= med.stockThreshold){
@@ -1118,7 +1426,8 @@ function reminderPlan(now=new Date()){
     rs[med.id]=at.getTime();
     // Text auf den Erinnerungszeitpunkt bezogen: erwarteter Rest und wie lange er dann noch reicht
     const perDay=dosesPerDay(med);
-    plan.push({ kind:'restock', at, med, left, extraText: perDay>0 ? fmtDays(Math.floor(left/perDay)) : '' });
+    const extraText = si && si.endPlan ? t('es fehlen {n}',{n:si.need-med.stock}) : perDay>0 ? fmtDays(Math.floor(left/perDay)) : '';
+    plan.push({ kind:'restock', at, med, left, extraText });
   }
   setRestock(rs);
   return plan;
@@ -1143,7 +1452,7 @@ function planToNotifications(plan){
         n.body  = [t('fällig seit {t}',{t:since}), t('{n}. Erinnerung',{n:p.n+1}), p.med.strength||''].filter(Boolean).join(' · ');
       } else {
         n.title = (p.kind==='snooze' ? '⏰ ' : '') + reminderTitle(p.med);
-        n.body  = reminderBody(p.med, p.time);
+        n.body  = reminderBody(p.med, p.time, p.key);
       }
       n.actionTypeId = 'DOSE';
       n.group = 'dosia-' + ident;              // Erinnerungen einer Dosis bündeln
@@ -1158,7 +1467,7 @@ async function ensureChannel(){
   const ln=LN(); if(!ln || !ln.createChannel) return;
   try{
     await ln.createChannel({ id:'dosia-reminders', name:t('Einnahme-Erinnerungen'),
-      description:t('Erinnert an die Medikamenten-Einnahme'), importance:5, visibility:1, vibration:true });
+      description:t('Erinnert an deine Einnahmen'), importance:5, visibility:1, vibration:true });
     channelReady = true;
   }catch(e){ console.warn('createChannel', e); channelReady=false; }
 }
@@ -1421,7 +1730,7 @@ function webCheck(){
     const fk=dose.medId+'|'+dose.time;
     if(dose.time<=nowHM && !fired.includes(fk)){
       if(!intakeState(key,dose.medId,dose.time)){
-        try{ new Notification(reminderTitle(dose.med), { body:reminderBody(dose.med, dose.time), tag:fk }); }catch{}
+        try{ new Notification(reminderTitle(dose.med), { body:reminderBody(dose.med, dose.time, todayKey()), tag:fk }); }catch{}
       }
       addFired(fk);
     }
