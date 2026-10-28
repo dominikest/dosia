@@ -43,6 +43,22 @@ public class DoseAlarmPlugin extends Plugin {
     @Override
     public void load() {
         instance = new WeakReference<>(this);
+        if (getActivity() != null) checkTap(getActivity().getIntent());   // Kaltstart durch Antippen
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        checkTap(intent);
+    }
+
+    /** Eine normale Erinnerung wurde angetippt: der App sagen, welche Ansicht sie zeigen soll. */
+    private void checkTap(Intent intent) {
+        if (intent == null || !intent.hasExtra(DoseAlarmStore.EXTRA_TAP)) return;
+        JSObject d = new JSObject();
+        d.put("tab", intent.getStringExtra(DoseAlarmStore.EXTRA_TAP));
+        intent.removeExtra(DoseAlarmStore.EXTRA_TAP);
+        notifyListeners("notificationTap", d, true);
     }
 
     /** Vom Receiver aufgerufen: neue verbuchte Aktionen liegen bereit. */

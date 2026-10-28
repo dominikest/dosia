@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.2 – 28.10.2026
+- **„✓ Genommen" und „⏰ In 10 Min." direkt in der Benachrichtigung öffnen Dosia nicht mehr:** Die Einnahme wird im Hintergrund verbucht, die gerade benutzte App bleibt im Vordergrund – auch auf dem Sperrbildschirm, ohne Entsperren
+- Nach „Genommen" verschwinden auch die übrigen Erinnerungen derselben Einnahme (Nachhaken) sofort aus der Leiste
+
 ## 1.7.1 – 26.10.2026
 - **Uhrzeiten schnell ausfüllen:** Beim Einnahmeplan mit einem Tipp 1× bis 6× täglich oder alle 2, 3, 4, 6, 8 oder 12 Stunden wählen. Die Zeiten werden zwischen deiner ersten und letzten Einnahme verteilt – z. B. 3× täglich von 08:00 bis 20:00 ergibt 08:00, 14:00 und 20:00
 - Erste und letzte Einnahme des Tages legst du selbst fest (z. B. Schluss um 20 oder 22 Uhr); Dosia merkt sich das für den nächsten Eintrag

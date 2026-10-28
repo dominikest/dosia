@@ -1,5 +1,9 @@
 # Changelog (English)
 
+## 1.7.2 – 28.10.2026
+- **“✓ Taken” and “⏰ In 10 min” in the notification no longer open Dosia:** the dose is recorded in the background and the app you are using stays in front – also on the lock screen, without unlocking
+- After “Taken”, the other reminders for the same dose (follow-ups) disappear from the shade right away
+
 ## 1.7.1 – 26.10.2026
 - **Quick fill for times:** pick 1 to 6 times a day or every 2, 3, 4, 6, 8 or 12 hours with one tap. The times are spread between your first and last dose – e.g. 3 times a day from 08:00 to 20:00 gives 08:00, 14:00 and 20:00
 - You set the first and last dose of the day yourself (e.g. stop at 8 or 10 pm); Dosia remembers it for the next entry

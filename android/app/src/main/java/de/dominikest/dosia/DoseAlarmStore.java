@@ -139,6 +139,11 @@ final class DoseAlarmStore {
         return q;
     }
 
+    /** Normale Erinnerung (Kanal "dosia-reminders") statt Wecker. */
+    static boolean isPlain(JSONObject o) {
+        return o.optBoolean("plain", false);
+    }
+
     static boolean canExact(Context c) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
@@ -150,7 +155,11 @@ final class DoseAlarmStore {
         long at = o.optLong("at");
         PendingIntent pi = firePi(c, id);
         try {
-            if (canExact(c)) {
+            if (isPlain(o)) {
+                // Normale Erinnerung: exakt, aber nicht als "Wecker" (kein Wecker-Symbol, keine "nächster Wecker"-Anzeige)
+                if (canExact(c)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+            } else if (canExact(c)) {
                 am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, showPi(c)), pi);
             } else {
                 // Ohne Erlaubnis für exakte Alarme: so genau wie möglich (kann sich etwas verzögern)
@@ -218,8 +227,8 @@ final class DoseAlarmStore {
             long at = o.optLong("at");
             if (at > now) { scheduleOne(c, o); keep.add(o); }
             else if (now - at < 60 * 60 * 1000L) {
-                // Während das Handy aus war fällig geworden: jetzt sofort klingeln
-                DoseAlarmReceiver.ring(c, o);
+                // Während das Handy aus war fällig geworden: jetzt sofort klingeln bzw. erinnern
+                DoseAlarmReceiver.fire(c, o);
             }
         }
         save(c, keep);
@@ -244,6 +253,31 @@ final class DoseAlarmStore {
         ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         nm.createNotificationChannel(ch);
     }
+
+    static final String PLAIN_CHANNEL_ID = "dosia-reminders";
+
+    /** Kanal der normalen Erinnerungen – legt die App normalerweise selbst an; hier nur als Rückfall. */
+    static void ensurePlainChannel(Context c) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm.getNotificationChannel(PLAIN_CHANNEL_ID) != null) return;
+        NotificationChannel ch = new NotificationChannel(PLAIN_CHANNEL_ID,
+            isGerman() ? "Einnahme-Erinnerungen" : "Dose reminders", NotificationManager.IMPORTANCE_HIGH);
+        ch.setDescription(isGerman() ? "Erinnert an deine Einnahmen" : "Reminds you of your doses");
+        ch.enableVibration(true);
+        ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(ch);
+    }
+
+    /** Öffnet Dosia beim Antippen einer normalen Erinnerung (Ansicht "Heute"). */
+    static PendingIntent tapPi(Context c, int id) {
+        Intent i = new Intent(c, MainActivity.class)
+            .setAction("de.dominikest.dosia.OPEN_REMINDER")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(EXTRA_TAP, "today");
+        return PendingIntent.getActivity(c, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+    static final String EXTRA_TAP = "dosiaTap";
 
     static boolean isGerman() {
         return java.util.Locale.getDefault().getLanguage().equals("de");

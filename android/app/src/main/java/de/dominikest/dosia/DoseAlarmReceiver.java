@@ -49,7 +49,7 @@ public class DoseAlarmReceiver extends BroadcastReceiver {
                 JSONObject o = DoseAlarmStore.find(c, id);
                 if (o == null) return;                       // inzwischen abgesagt (z. B. schon genommen)
                 DoseAlarmStore.remove(c, id);
-                ring(c, o);
+                fire(c, o);
                 return;
             }
             case DoseAlarmStore.ACTION_QUIET:
@@ -57,6 +57,43 @@ public class DoseAlarmReceiver extends BroadcastReceiver {
                 return;
             default:
         }
+    }
+
+    /** Fällige Erinnerung anzeigen: als Wecker oder als normale Benachrichtigung. */
+    static void fire(Context c, JSONObject o) {
+        if (DoseAlarmStore.isPlain(o)) show(c, o);
+        else ring(c, o);
+    }
+
+    /**
+     * Normale Erinnerung mit Knöpfen "Genommen" / "Später". Die Knöpfe laufen über diesen Receiver
+     * (Broadcast) – Dosia öffnet sich dafür nicht und schiebt sich nicht vor die gerade benutzte App.
+     */
+    static void show(Context c, JSONObject o) {
+        DoseAlarmStore.ensurePlainChannel(c);
+        int id = o.optInt("id");
+        String title = o.optString("title", "Dosia");
+        String body = o.optString("body", "");
+        NotificationCompat.Builder b = new NotificationCompat.Builder(c, DoseAlarmStore.PLAIN_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setAutoCancel(false)
+            .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
+            .setContentIntent(DoseAlarmStore.tapPi(c, id))
+            .addAction(0, o.optString("takeLabel", "✓"), DoseAlarmStore.userActionPi(c, id, "take"))
+            .addAction(0, o.optString("snoozeLabel", "⏰"), DoseAlarmStore.userActionPi(c, id, "snooze"));
+        String ident = DoseAlarmStore.doseIdent(o);
+        if (!ident.isEmpty()) b.setGroup("dosia-" + ident);      // Erinnerungen einer Dosis bündeln
+        Bundle ex = new Bundle();
+        ex.putString("dosiaAlarm", o.toString());
+        b.addExtras(ex);
+        nm(c).notify(id, b.build());
     }
 
     static void ring(Context c, JSONObject o) {
@@ -91,6 +128,7 @@ public class DoseAlarmReceiver extends BroadcastReceiver {
         DoseAlarmStore.cancelQuiet(c, id);
         nm(c).cancel(id);
         finishScreen(c, id);
+        if ("take".equals(actionId) || "snooze".equals(actionId)) cancelShownOfDose(c, o, id);
         if ("take".equals(actionId)) {
             // Weitere Wecker dieser Dosis (Nachhaken) sofort absagen
             DoseAlarmStore.cancelDose(c, DoseAlarmStore.doseIdent(o));
@@ -108,6 +146,23 @@ public class DoseAlarmReceiver extends BroadcastReceiver {
         }
         DoseAlarmStore.enqueue(c, actionId, o);
         DoseAlarmPlugin.queueChanged();                       // läuft die App gerade, verbucht sie es sofort
+    }
+
+    /** Weitere angezeigte Erinnerungen derselben Dosis (z. B. Nachhaken) aus der Leiste nehmen. */
+    static void cancelShownOfDose(Context c, JSONObject o, int exceptId) {
+        String ident = DoseAlarmStore.doseIdent(o);
+        if (ident.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        for (StatusBarNotification sbn : nm(c).getActiveNotifications()) {
+            if (sbn.getId() == exceptId) continue;
+            String json = sbn.getNotification().extras.getString("dosiaAlarm");
+            if (json == null) continue;
+            try {
+                if (!ident.equals(DoseAlarmStore.doseIdent(new JSONObject(json)))) continue;
+            } catch (Exception e) { continue; }
+            nm(c).cancel(sbn.getId());
+            DoseAlarmStore.cancelQuiet(c, sbn.getId());
+            finishScreen(c, sbn.getId());
+        }
     }
 
     static void finishScreen(Context c, int id) {

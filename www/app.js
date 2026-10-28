@@ -1585,8 +1585,10 @@ async function nativeReschedule(){
     }
     if(!channelReady) await ensureChannel();
     const notifications = planToNotifications(reminderPlan());
-    // Wecker-Modus: diese Erinnerungen plant das eigene Plugin als echte Wecker
-    const alarms = DA() ? notifications.filter(n=>n.alarm) : [];
+    // Dosis-Erinnerungen plant das eigene Plugin: im Wecker-Modus als echte Wecker, sonst als normale
+    // Benachrichtigung. Dessen Knöpfe "Genommen"/"Später" verbuchen im Hintergrund, ohne Dosia zu öffnen
+    // (beim Benachrichtigungs-Plugin startet jeder Knopf die App). Nur Nachkauf-Hinweise bleiben beim Plugin.
+    const alarms = DA() ? notifications.filter(n=>n.actionTypeId==='DOSE') : [];
     const normal = notifications.filter(n=>!alarms.includes(n));
     normal.forEach(n=>{ delete n.alarm; });
     // Reihenfolge wichtig: erst die Wecker ersetzen (gibt alte frei), dann Benachrichtigungen planen –
@@ -1613,7 +1615,7 @@ async function scheduleAlarms(list){
     let forget = [];
     try{ if(!localStorage.getItem(ALARM_CLEANUP_KEY)) forget = Object.keys(getNidMap()).map(Number); }catch{}
     await da.schedule({ forget,
-      alarms: list.map(n=>({ id:n.id, at:new Date(n.schedule.at).getTime(), title:n.title, body:n.body,
+      alarms: list.map(n=>({ id:n.id, at:new Date(n.schedule.at).getTime(), title:n.title, body:n.body, plain:!n.alarm,
       takeLabel:t('✓ Genommen'), snoozeLabel:t('⏰ In {n} Min.',{n:SNOOZE_MIN}), extra:n.extra })) });
     if(forget.length || !localStorage.getItem(ALARM_CLEANUP_KEY)) localStorage.setItem(ALARM_CLEANUP_KEY, String(Date.now()));
   }catch(e){ console.warn('scheduleAlarms', e); }
@@ -1846,7 +1848,12 @@ render();
 // Beim Start: Kanal sicherstellen und Erinnerungen (neu) einplanen
 (async()=>{
   if(isNative){ await ensureChannel(); await setupNotificationActions(); }
-  if(DA()){ try{ await DA().addListener('alarmQueue', ()=>processAlarmQueue()); }catch{} await processAlarmQueue(); }
+  if(DA()){
+    try{ await DA().addListener('alarmQueue', ()=>processAlarmQueue()); }catch{}
+    // Normale Erinnerung angetippt: Dosia mit "Heute" öffnen
+    try{ await DA().addListener('notificationTap', d=>{ currentTab = (d && d.tab) || 'today'; closeModal(); render(); }); }catch{}
+    await processAlarmQueue();
+  }
   await refreshReminders();
   await loadReliability(); render();
 })();
