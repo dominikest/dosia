@@ -63,6 +63,12 @@ jobs:
       - name: Sync web assets into Android project
         run: npm run sync
 
+      - name: Test dose reminder notifications
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:testDirectDebugUnitTest --tests de.dominikest.dosia.DoseAlarmReceiverTest --no-daemon
+
       - name: Decode keystore
         env:
           KEYSTORE_B64: ${{ secrets.DOSIA_KEYSTORE_BASE64 }}

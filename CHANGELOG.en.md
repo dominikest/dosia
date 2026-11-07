@@ -1,5 +1,9 @@
 # Changelog (English)
 
+## 1.7.3 – 07.11.2026
+- Fixed: Repeated follow-ups no longer accumulate duplicate notifications. Only the latest reminder for each dose remains visible, including in alarm mode
+- Existing duplicates for the same dose are removed on the next reminder; other doses remain visible separately
+
 ## 1.7.2 – 28.10.2026
 - **“✓ Taken” and “⏰ In 10 min” in the notification no longer open Dosia:** the dose is recorded in the background and the app you are using stays in front – also on the lock screen, without unlocking
 - After “Taken”, the other reminders for the same dose (follow-ups) disappear from the shade right away

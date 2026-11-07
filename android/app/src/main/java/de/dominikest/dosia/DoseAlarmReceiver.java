@@ -61,6 +61,9 @@ public class DoseAlarmReceiver extends BroadcastReceiver {
 
     /** Fällige Erinnerung anzeigen: als Wecker oder als normale Benachrichtigung. */
     static void fire(Context c, JSONObject o) {
+        // Jede Wiederholung hat für die Planung eine eigene ID. In der Leiste soll
+        // trotzdem nur die neueste Erinnerung dieser Dosis stehen (auch nach einem Update).
+        cancelShownOfDose(c, o, o.optInt("id"));
         if (DoseAlarmStore.isPlain(o)) show(c, o);
         else ring(c, o);
     }

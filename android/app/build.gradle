@@ -38,6 +38,9 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
     flavorDimensions = ["vertrieb"]
     productFlavors {
         direct {
@@ -90,6 +93,7 @@ dependencies {
     // Google-Anmeldung/Autorisierung fuer die Drive-Sicherung (GoogleDrivePlugin)
     implementation "com.google.android.gms:play-services-auth:21.2.0"
     testImplementation "junit:junit:$junitVersion"
+    testImplementation 'org.robolectric:robolectric:4.14.1'
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')

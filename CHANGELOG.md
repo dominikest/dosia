@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.3 – 07.11.2026
+- Behoben: Wiederholtes Nachhaken sammelt keine doppelten Benachrichtigungen mehr an. Pro Einnahme bleibt nur die neueste Erinnerung sichtbar – auch im Wecker-Modus
+- Bereits angesammelte Erinnerungen derselben Einnahme werden beim nächsten Nachhaken entfernt; andere Einnahmen bleiben separat sichtbar
+
 ## 1.7.2 – 28.10.2026
 - **„✓ Genommen" und „⏰ In 10 Min." direkt in der Benachrichtigung öffnen Dosia nicht mehr:** Die Einnahme wird im Hintergrund verbucht, die gerade benutzte App bleibt im Vordergrund – auch auf dem Sperrbildschirm, ohne Entsperren
 - Nach „Genommen" verschwinden auch die übrigen Erinnerungen derselben Einnahme (Nachhaken) sofort aus der Leiste

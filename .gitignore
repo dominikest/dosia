@@ -49,3 +49,8 @@ ADMIN-EINRICHTEN.txt
 .agentsroom/handoff-summary-*.md
 .agentsroom/fork-context-*.txt
 .agentsroom/transfer-context-*.txt
+.agentsroom/handoff-context-*.txt
+
+# Lokale Agenten-Konfiguration und Laufzeitdaten
+.agentsroom/
+.codex/
