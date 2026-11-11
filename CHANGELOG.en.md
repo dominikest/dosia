@@ -1,5 +1,10 @@
 # Changelog (English)
 
+## 1.8.0 – 11.11.2026
+- **New home screen widget “Today”:** shows today’s open doses. Tap ✓ to mark a dose as taken without opening Dosia – it is recorded just like “Taken” in the notification
+- The widget also shows how many doses are still open and how many are done; tapping a row opens Dosia on “Today”
+- The widget updates whenever Dosia changes today’s status; if you have not opened Dosia on a new day, it shows a hint instead of old data
+
 ## 1.7.3 – 07.11.2026
 - Fixed: Repeated follow-ups no longer accumulate duplicate notifications. Only the latest reminder for each dose remains visible, including in alarm mode
 - Existing duplicates for the same dose are removed on the next reminder; other doses remain visible separately

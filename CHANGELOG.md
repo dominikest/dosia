@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.0 – 11.11.2026
+- **Neues Startbildschirm-Widget „Heute":** zeigt die offenen Einnahmen von heute. Ein Tipp auf ✓ hakt sie ab, ohne Dosia zu öffnen – die Einnahme wird wie bei „Genommen" in der Benachrichtigung verbucht
+- Im Widget steht außerdem, wie viele Einnahmen heute noch offen sind und wie viele erledigt sind; ein Tipp auf eine Zeile öffnet Dosia auf „Heute"
+- Das Widget aktualisiert sich, sobald Dosia den Tagesstand ändert; öffnest du Dosia an einem neuen Tag nicht, zeigt es einen Hinweis statt alter Daten
+
 ## 1.7.3 – 07.11.2026
 - Behoben: Wiederholtes Nachhaken sammelt keine doppelten Benachrichtigungen mehr an. Pro Einnahme bleibt nur die neueste Erinnerung sichtbar – auch im Wecker-Modus
 - Bereits angesammelte Erinnerungen derselben Einnahme werden beim nächsten Nachhaken entfernt; andere Einnahmen bleiben separat sichtbar
