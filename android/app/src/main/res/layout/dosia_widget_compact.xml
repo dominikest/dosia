@@ -14,8 +14,8 @@
         android:scaleType="fitCenter"
         android:src="@drawable/dosia_symbol" />
 
-    <!-- Abgehakt: heller Schleier über dem Symbol -->
-    <View
+    <!-- Abgehakt: heller Schleier über dem Symbol. Bewusst FrameLayout statt View: RemoteViews erlaubt View nicht. -->
+    <FrameLayout
         android:id="@+id/compact_done"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

@@ -1,5 +1,9 @@
 # Changelog (English)
 
+## 1.8.2 – 11.11.2026
+- **“Today mini” widget asks for a medication when you add it:** each small widget shows its own medication, so you can place several on the home screen. “All” shows the next open dose as before
+- Fixed: the small widget appeared semi-transparent with an error message
+
 ## 1.8.1 – 11.11.2026
 - **New smallest home screen widget “Today mini” (1×1):** shows the Dosia symbol and the medication of the next open dose for today. Tap it to mark that dose as taken; a done dose shows ✓
 

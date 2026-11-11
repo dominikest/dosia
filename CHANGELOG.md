@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.2 – 11.11.2026
+- **Widget „Heute mini“ fragt beim Hinzufügen nach dem Medikament:** jedes kleine Widget zeigt sein eigenes Medikament, du kannst also mehrere auf den Desktop legen. „Alle“ zeigt wie bisher die nächste offene Einnahme
+- Behoben: Das kleine Widget wurde als halbtransparent mit Fehlermeldung angezeigt
+
 ## 1.8.1 – 11.11.2026
 - **Neues kleinstes Widget „Heute mini“ (1×1):** zeigt das Dosia-Symbol und das Medikament der nächsten offenen Einnahme von heute. Ein Tipp hakt diese Einnahme ab; erledigt erscheint ✓
 
