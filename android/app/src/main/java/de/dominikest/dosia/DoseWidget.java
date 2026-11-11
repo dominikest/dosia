@@ -81,6 +81,7 @@ public class DoseWidget extends AppWidgetProvider {
     static void refreshAll(Context c) {
         AppWidgetManager mgr = AppWidgetManager.getInstance(c);
         for (int id : mgr.getAppWidgetIds(new ComponentName(c, DoseWidget.class))) updateOne(c, mgr, id);
+        DoseWidgetCompact.refreshAll(c);
     }
 
     static void updateOne(Context c, AppWidgetManager mgr, int widgetId) {
@@ -164,7 +165,7 @@ public class DoseWidget extends AppWidgetProvider {
         return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    private static JSONObject readData(Context c) {
+    static JSONObject readData(Context c) {
         try {
             String s = prefs(c).getString(KEY_DATA, null);
             return s == null ? null : new JSONObject(s);
@@ -174,7 +175,7 @@ public class DoseWidget extends AppWidgetProvider {
     }
 
     /** Heute bereits verbuchte Einnahmen (Ident "YYYY-MM-DD|medId|HH:MM"), bis die App den Stand neu schickt. */
-    private static Set<String> pending(Context c, String today) {
+    static Set<String> pending(Context c, String today) {
         Set<String> out = new HashSet<>();
         for (String s : readPending(c)) if (s.startsWith(today + "|")) out.add(s);
         return out;
@@ -206,7 +207,7 @@ public class DoseWidget extends AppWidgetProvider {
         return key.isEmpty() ? "" : key + "|" + medId + "|" + time;
     }
 
-    private static String todayKey() {
+    static String todayKey() {
         Calendar cal = Calendar.getInstance();
         return String.format(Locale.US, "%04d-%02d-%02d",
             cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH));
@@ -218,7 +219,7 @@ public class DoseWidget extends AppWidgetProvider {
     }
 
     /** Öffnet Dosia mit der Ansicht "Heute" (wie das Antippen einer Erinnerung). */
-    private static PendingIntent openPi(Context c, int requestCode) {
+    static PendingIntent openPi(Context c, int requestCode) {
         Intent i = new Intent(c, MainActivity.class)
             .setAction("de.dominikest.dosia.OPEN_REMINDER")
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)

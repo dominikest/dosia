@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="widget_name">Dosia · Heute</string>
+    <string name="widget_compact_name">Dosia · Heute kompakt</string>
+    <string name="widget_compact_description">Ein Knopf pro Medikament für heute – nächste Einnahme abhaken</string>
     <string name="widget_description">Offene Einnahmen von heute abhaken, ohne die App zu öffnen</string>
 </resources>

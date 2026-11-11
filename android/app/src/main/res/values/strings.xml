@@ -5,5 +5,7 @@
     <string name="package_name">de.dominikest.dosia</string>
     <string name="custom_url_scheme">de.dominikest.dosia</string>
     <string name="widget_name">Dosia · Today</string>
+    <string name="widget_compact_name">Dosia · Today compact</string>
+    <string name="widget_compact_description">One button per medication for today – tick off the next dose</string>
     <string name="widget_description">Open doses for today – tick them off without opening the app</string>
 </resources>
