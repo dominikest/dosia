@@ -5,6 +5,7 @@
     android:targetCellWidth="1"
     android:targetCellHeight="1"
     android:updatePeriodMillis="1800000"
+    android:configure="de.dominikest.dosia.DoseWidgetCompactConfigActivity"
     android:initialLayout="@layout/dosia_widget_compact"
     android:resizeMode="none"
     android:widgetCategory="home_screen"

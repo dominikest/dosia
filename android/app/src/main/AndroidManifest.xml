@@ -66,6 +66,16 @@
                 android:resource="@xml/dosia_widget_compact_info" />
         </receiver>
 
+        <!-- Fragt beim Hinzufügen des kleinen Widgets, welches Medikament es zeigt -->
+        <activity
+            android:name=".DoseWidgetCompactConfigActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.Light">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

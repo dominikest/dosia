@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -16,7 +17,9 @@ import java.util.Set;
 
 /**
  * Kleinstes Startbildschirm-Widget (1x1): Dosia-Symbol plus Medikament der nächsten offenen Einnahme von heute.
- * Ein Tipp auf das Widget verbucht genau diese Einnahme (gleiche Warteschlange wie das große Widget).
+ * Beim Hinzufügen fragt die Konfiguration (DoseWidgetCompactConfigActivity) nach dem Medikament; jede
+ * Widget-Instanz zeigt dann ihr eigenes Medikament. Ein Tipp verbucht die nächste offene Einnahme dieses
+ * Medikaments (gleiche Warteschlange wie das große Widget). Ohne Auswahl gilt die nächste Einnahme überhaupt.
  * Ist nichts mehr offen, zeigt es ✓ über einem hellen Schleier; ohne Tagesstand öffnet ein Tipp die App.
  * Die Daten kommen aus demselben Tagesstand wie beim großen Widget (DoseWidget.save).
  */
@@ -25,10 +28,31 @@ public class DoseWidgetCompact extends AppWidgetProvider {
     private static final int REQ_OPEN = 9400;
     private static final int REQ_TAKE = 9500;
     private static final int NAME_MAX = 6;   // Zeichen des Medikamentennamens auf dem Label
+    private static final String KEY_MED = "compact_med_";   // + widgetId → medId ("" = alle Medikamente)
 
     @Override
     public void onUpdate(Context c, AppWidgetManager mgr, int[] ids) {
         for (int id : ids) updateOne(c, mgr, id);
+    }
+
+    @Override
+    public void onDeleted(Context c, int[] ids) {
+        SharedPreferences.Editor e = prefs(c).edit();
+        for (int id : ids) e.remove(KEY_MED + id);
+        e.apply();
+    }
+
+    static void saveMed(Context c, int widgetId, String medId) {
+        prefs(c).edit().putString(KEY_MED + widgetId, medId).apply();
+    }
+
+    /** Medikament-ID der Instanz; "" = alle Medikamente (auch für Widgets ohne Auswahl). */
+    static String medFor(Context c, int widgetId) {
+        return prefs(c).getString(KEY_MED + widgetId, "");
+    }
+
+    private static SharedPreferences prefs(Context c) {
+        return c.getSharedPreferences(DoseWidget.PREFS, Context.MODE_PRIVATE);
     }
 
     static void refreshAll(Context c) {
@@ -44,6 +68,9 @@ public class DoseWidgetCompact extends AppWidgetProvider {
         JSONObject data = DoseWidget.readData(c);
         boolean stale = data == null || !today.equals(data.optString("date"));
 
+        String med = medFor(c, widgetId);   // "" = alle Medikamente
+        boolean one = !med.isEmpty();
+
         JSONObject next = null;   // früheste offene Einnahme (Array ist nach Uhrzeit sortiert)
         int open = 0, total = 0;
         if (!stale) {
@@ -53,6 +80,7 @@ public class DoseWidgetCompact extends AppWidgetProvider {
                 for (int i = 0; i < arr.length(); i++) {
                     JSONObject d = arr.optJSONObject(i);
                     if (d == null) continue;
+                    if (one && !med.equals(d.optString("medId"))) continue;
                     total++;
                     boolean isDone = d.optBoolean("done") || pending.contains(DoseWidget.ident(d));
                     if (!isDone) {
