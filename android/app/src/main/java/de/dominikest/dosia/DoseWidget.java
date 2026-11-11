@@ -61,6 +61,9 @@ public class DoseWidget extends AppWidgetProvider {
             // Medikamenten-ID unverändert übernehmen (Typ wie in der App), damit die App sie wiederfindet
             JSONObject extra = new JSONObject()
                 .put("key", dose.opt("key")).put("medId", dose.opt("medId")).put("time", dose.opt("time"));
+            // Wie "Genommen" in der Benachrichtigung: Nachhaken und angezeigte Erinnerungen dieser Einnahme sofort entfernen
+            DoseAlarmStore.cancelDose(c, ident);
+            DoseAlarmReceiver.cancelShownOfDose(c, new JSONObject().put("extra", extra), -1);
             DoseAlarmStore.enqueue(c, "take", new JSONObject().put("id", 0).put("extra", extra));
         } catch (JSONException ignored) {
             return;
