@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.8.1 – 11.11.2026
+- **Neues kleinstes Widget „Heute mini“ (1×1):** zeigt das Dosia-Symbol und das Medikament der nächsten offenen Einnahme von heute. Ein Tipp hakt diese Einnahme ab; erledigt erscheint ✓
+
 ## 1.8.0 – 11.11.2026
 - **Neues Startbildschirm-Widget „Heute":** zeigt die offenen Einnahmen von heute. Ein Tipp auf ✓ hakt sie ab, ohne Dosia zu öffnen – die Einnahme wird wie bei „Genommen" in der Benachrichtigung verbucht
 - Im Widget steht außerdem, wie viele Einnahmen heute noch offen sind und wie viele erledigt sind; ein Tipp auf eine Zeile öffnet Dosia auf „Heute"
