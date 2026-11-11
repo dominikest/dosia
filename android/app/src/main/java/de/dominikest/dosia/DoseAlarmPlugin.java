@@ -91,6 +91,17 @@ public class DoseAlarmPlugin extends Plugin {
         }
     }
 
+    /** Tagesstand fürs Startbildschirm-Widget: json = {date:"YYYY-MM-DD", doses:[…]}. */
+    @PluginMethod
+    public void setWidgetData(PluginCall call) {
+        try {
+            DoseWidget.save(ctx(), call.getString("json", "{}"));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Widget: " + e.getMessage());
+        }
+    }
+
     /** Angezeigte Wecker-Benachrichtigungen entfernen (z. B. Dosis in der App abgehakt). */
     @PluginMethod
     public void dismiss(PluginCall call) {

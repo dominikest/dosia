@@ -1605,6 +1605,22 @@ async function nativeReschedule(){
   }catch(e){ console.warn('nativeReschedule', e); }
 }
 
+/* ---- Startbildschirm-Widget "Heute" ---- */
+// Heutiger Stand aller Dosen (alle Profile) – die App schreibt ihn nach jeder Änderung in den nativen Speicher.
+async function updateWidget(){
+  const da = DA(); if(!da) return;
+  try{
+    const key = todayKey();
+    const doses = dosesForDay(key).map(d=>({
+      key, medId:d.medId, time:d.time,
+      name: multiProfile() ? `${profileById(d.med.profileId).name}: ${d.med.name}` : d.med.name,
+      strength: d.med.strength || '',
+      done: !!intakeState(key, d.medId, d.time)
+    }));
+    await da.setWidgetData({ json: JSON.stringify({ date:key, doses }) });
+  }catch(e){ console.warn('updateWidget', e); }
+}
+
 /* ---- Wecker-Modus ---- */
 const ALARM_CLEANUP_KEY = 'dosia.alarmcleanup.v2';
 async function scheduleAlarms(list){
@@ -1809,7 +1825,7 @@ function webCheck(){
 let rescheduleChain = Promise.resolve();
 function refreshReminders(){
   if(!isNative){ webReminderLoop(); return Promise.resolve(); }
-  rescheduleChain = rescheduleChain.then(()=>nativeReschedule()).catch(e=>console.warn('refreshReminders', e));
+  rescheduleChain = rescheduleChain.then(()=>nativeReschedule()).then(()=>updateWidget()).catch(e=>console.warn('refreshReminders', e));
   return rescheduleChain;
 }
 
