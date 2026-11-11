@@ -1,5 +1,8 @@
 # Changelog (English)
 
+## 1.8.1 – 11.11.2026
+- **New smallest home screen widget “Today mini” (1×1):** shows the Dosia symbol and the medication of the next open dose for today. Tap it to mark that dose as taken; a done dose shows ✓
+
 ## 1.8.0 – 11.11.2026
 - **New home screen widget “Today”:** shows today’s open doses. Tap ✓ to mark a dose as taken without opening Dosia – it is recorded just like “Taken” in the notification
 - The widget also shows how many doses are still open and how many are done; tapping a row opens Dosia on “Today”
